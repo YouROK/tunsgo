@@ -3,6 +3,7 @@ package main
 import (
 	"TunsGo/config"
 	"TunsGo/net"
+	"TunsGo/web"
 	"log"
 	"os"
 	"os/signal"
@@ -21,9 +22,15 @@ func main() {
 
 	m := net.NewManager()
 	m.Start()
+	server := web.NewServer()
+	go server.Run(m)
 
 	osSignals := make(chan os.Signal, 1)
-	signal.Notify(osSignals, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(osSignals,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
 	<-osSignals
 
 	m.Stop()
