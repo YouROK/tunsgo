@@ -19,6 +19,15 @@ type Config struct {
 	} `yaml:"dns"`
 
 	FillRouteTable bool `yaml:"fill_route_table"`
+
+	Log struct {
+		UseStdOut  bool   `yaml:"use_std_out"`
+		MaxSize    int    `yaml:"max_size"`
+		MaxBackups int    `yaml:"max_backups"`
+		MaxAge     int    `yaml:"max_age"`
+		Compress   bool   `yaml:"compress"`
+		Filename   string `yaml:"file_name"`
+	} `yaml:"log"`
 }
 
 type TunConfig struct {
@@ -72,6 +81,13 @@ func setDefaults() {
 	Cfg.DNS.ForwardTun = "tun0"
 
 	Cfg.FillRouteTable = true
+
+	Cfg.Log.MaxSize = 1
+	Cfg.Log.MaxBackups = 2
+	Cfg.Log.MaxAge = 7
+	Cfg.Log.Compress = true
+	Cfg.Log.Filename = "/opt/var/log/tunsgo.log"
+	Cfg.Log.UseStdOut = false
 }
 
 func Save() error {
