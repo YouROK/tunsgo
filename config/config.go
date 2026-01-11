@@ -31,6 +31,7 @@ type Config struct {
 }
 
 type TunConfig struct {
+	Disable     bool   `yaml:"disable"`
 	TunName     string `yaml:"tun"`
 	TableID     int    `yaml:"table_id"`
 	ForwardMark uint32 `yaml:"fw_mark"`

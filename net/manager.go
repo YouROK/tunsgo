@@ -9,9 +9,11 @@ type Manager struct {
 }
 
 func NewManager() *Manager {
-
 	var tunnels []*Tunnel
 	for _, tun := range config.Cfg.Tuns {
+		if tun.Disable {
+			continue
+		}
 		t := NewTunnel(tun)
 		tunnels = append(tunnels, t)
 	}
