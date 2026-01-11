@@ -17,6 +17,7 @@ func main() {
 	if err != nil {
 		return
 	}
+	initLogger()
 
 	m := net.NewManager()
 	m.Start()
