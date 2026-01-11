@@ -9,16 +9,16 @@ import (
 )
 
 type Config struct {
+	FillRouteTable bool `yaml:"fill_route_table"`
+
 	Tuns []*TunConfig `yaml:"tuns"`
 
 	DNS struct {
-		ForwardTun        string `yaml:"forward_tun"`
-		Listen            string `yaml:"listen"`
-		Upstream          string `yaml:"upstream"`
-		CacheTimeoutHours int    `yaml:"cache_timeout_hours"`
+		ForwardTun string `yaml:"forward_tun"`
+		Listen     string `yaml:"listen"`
+		Upstream   string `yaml:"upstream"`
+		UseCache   bool   `yaml:"use_cache"`
 	} `yaml:"dns"`
-
-	FillRouteTable bool `yaml:"fill_route_table"`
 
 	Log struct {
 		UseStdOut  bool   `yaml:"use_std_out"`
@@ -28,13 +28,20 @@ type Config struct {
 		Compress   bool   `yaml:"compress"`
 		Filename   string `yaml:"file_name"`
 	} `yaml:"log"`
+
+	Web struct {
+		Host  string `yaml:"host"`
+		Port  int    `yaml:"port"`
+		Login string `yaml:"login"`
+		Pass  string `yaml:"pass"`
+	} `yaml:"web"`
 }
 
 type TunConfig struct {
-	Disable     bool   `yaml:"disable"`
 	TunName     string `yaml:"tun"`
 	TableID     int    `yaml:"table_id"`
 	ForwardMark uint32 `yaml:"fw_mark"`
+	Disable     bool   `yaml:"disable"`
 }
 
 var Cfg *Config
@@ -78,7 +85,7 @@ func setDefaults() {
 
 	Cfg.DNS.Listen = ":53"
 	Cfg.DNS.Upstream = "9.9.9.9:53"
-	Cfg.DNS.CacheTimeoutHours = 24
+	Cfg.DNS.UseCache = true
 	Cfg.DNS.ForwardTun = "tun0"
 
 	Cfg.FillRouteTable = true
@@ -89,6 +96,11 @@ func setDefaults() {
 	Cfg.Log.Compress = true
 	Cfg.Log.Filename = "/opt/var/log/tunsgo.log"
 	Cfg.Log.UseStdOut = false
+
+	Cfg.Web.Host = ""
+	Cfg.Web.Port = 3001
+	Cfg.Web.Login = ""
+	Cfg.Web.Pass = ""
 }
 
 func Save() error {
