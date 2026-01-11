@@ -13,6 +13,7 @@ import (
 
 type DNS struct {
 	tunnels []*Tunnel
+	server  *dns.Server
 }
 
 func NewDNS(tunnels []*Tunnel) *DNS {
@@ -55,14 +56,14 @@ func (d *DNS) Start() {
 		w.WriteMsg(resp)
 	})
 
-	server := &dns.Server{
+	d.server = &dns.Server{
 		Addr:    config.Cfg.DNS.Listen,
 		Net:     "udp",
 		Handler: mux,
 	}
 
 	log.Printf("[DNS] Listen %s", config.Cfg.DNS.Listen)
-	if err := server.ListenAndServe(); err != nil {
+	if err := d.server.ListenAndServe(); err != nil {
 		log.Fatalf("[DNS] Error run server: %v", err)
 	}
 }
@@ -71,6 +72,7 @@ func (d *DNS) Stop() {
 	for _, t := range d.tunnels {
 		t.Cleanup()
 	}
+	d.server.Shutdown()
 }
 
 func (d *DNS) GetIps(domain string) ([]dns.RR, error) {
