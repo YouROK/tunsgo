@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>TunsGo - Edit Configuration</title>
+    {{template "head.go.html" .}}
+    <style>
+        :root {
+            --tg-border-color: #e9ecef;
+            --tg-primary: #0d6efd;
+        }
+        .config-section {
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid var(--tg-border-color);
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .section-header {
+            border-left: 4px solid var(--tg-primary);
+            padding-left: 1rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .section-title {
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            color: #495057;
+            margin: 0;
+        }
+        .form-label { font-weight: 600; font-size: 0.8rem; color: #6c757d; margin-bottom: 0.4rem; }
+        .table-tuns thead th {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            background: #f8f9fa;
+            color: #6c757d;
+        }
+        .code-font { font-family: 'SFMono-Regular', monospace; font-size: 0.85rem; }
+        .btn-remove { color: #dc3545; text-decoration: none; font-size: 1.2rem; line-height: 1; }
+        .btn-remove:hover { color: #a71d2a; }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+    <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+            <img src="/st/favicon-32x32.png" width="30" height="30" class="me-2" alt="">
+            TunsGo
+        </a>
+        <div class="navbar-nav ms-auto">
+            <a class="nav-link" href="/">Status</a>
+            <a class="nav-link active" href="/config">Configuration</a>
+            <a class="nav-link" href="/dns">DNS</a>
+            <a class="nav-link" href="/logs">Logs</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <form action="/config/save" method="POST">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0">Configuration</h2>
+                <p class="text-muted small mb-0">Core system and network interface parameters</p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="/config" class="btn btn-outline-secondary btn-sm px-3">Cancel</a>
+                <button type="submit" class="btn btn-primary btn-sm px-4 shadow-sm fw-bold">Save All Changes</button>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <div class="section-header">
+                <div class="section-title">Tunnel Interfaces & Routing</div>
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" name="fill_route_table" id="fillRoute" {{if .FillRouteTable}}checked{{end}}>
+                    <label class="form-check-label small fw-bold" for="fillRoute">Fill routes on startup</label>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm align-middle table-tuns">
+                    <thead>
+                    <tr>
+                        <th style="width: 30%;">Interface Name</th>
+                        <th>Table ID</th>
+                        <th>FW Mark</th>
+                        <th class="text-center">Disabled</th>
+                        <th style="width: 40px;"></th>
+                    </tr>
+                    </thead>
+                    <tbody id="tuns-body">
+                    {{range .Tuns}}
+                        <tr class="tun-row">
+                            <td>
+                                <input type="text" name="tun_name[]" class="form-control form-control-sm code-font" value="{{.TunName}}" required>
+                            </td>
+                            <td>
+                                <input type="number" name="tun_table[]" class="form-control form-control-sm" value="{{.TableID}}" required>
+                            </td>
+                            <td>
+                                <input type="number" name="tun_mark[]" class="form-control form-control-sm" value="{{.ForwardMark}}" required>
+                            </td>
+                            <td class="text-center">
+                                <div class="form-check d-flex justify-content-center">
+                                    <input type="checkbox" class="form-check-input" onchange="updateHidden(this)" {{if .Disable}}checked{{end}}>
+                                    <input type="hidden" name="tun_disable[]" value="{{if .Disable}}true{{else}}false{{end}}">
+                                </div>
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-link btn-remove p-0" onclick="removeRow(this)">&times;</button>
+                            </td>
+                        </tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm mt-1" onclick="addRow()">
+                <small>+ Add New Interface</small>
+            </button>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="config-section">
+                    <div class="section-header">
+                        <div class="section-title">DNS Server</div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label">Listen Address</label>
+                            <input type="text" name="dns_listen" class="form-control form-control-sm code-font" value="{{.DNS.Listen}}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Upstream</label>
+                            <input type="text" name="dns_upstream" class="form-control form-control-sm code-font" value="{{.DNS.Upstream}}">
+                        </div>
+                        <div class="col-7">
+                            <label class="form-label">Forwarding Tunnel</label>
+                            <input type="text" name="dns_forward_tun" class="form-control form-control-sm code-font" value="{{.DNS.ForwardTun}}">
+                        </div>
+                        <div class="d-flex flex-column gap-2 border-top pt-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="dns_use_cache" id="dnsUseCache" {{if .DNS.UseCache}}checked{{end}}>
+                                <label class="form-check-label small" for="dnsUseCache">Use DNS Cache</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <div class="section-header">
+                        <div class="section-title">Web Interface</div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-8">
+                            <label class="form-label">Host</label>
+                            <input type="text" name="web_host" class="form-control form-control-sm" value="{{.Web.Host}}">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Port</label>
+                            <input type="number" name="web_port" class="form-control form-control-sm" value="{{.Web.Port}}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Login</label>
+                            <input type="text" name="web_login" class="form-control form-control-sm" placeholder="Leave empty to disable" value="{{.Web.Login}}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Password</label>
+                            <input type="password" name="web_pass" class="form-control form-control-sm" placeholder="Leave empty to disable" value="{{.Web.Pass}}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="config-section">
+                    <div class="section-header">
+                        <div class="section-title">Logging</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Log File Path</label>
+                        <input type="text" name="log_filename" class="form-control form-control-sm code-font" value="{{.Log.Filename}}">
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-4">
+                            <label class="form-label">Max Size (MB)</label>
+                            <input type="number" name="log_maxsize" class="form-control form-control-sm" value="{{.Log.MaxSize}}">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Max Backups</label>
+                            <input type="number" name="log_maxbackups" class="form-control form-control-sm" value="{{.Log.MaxBackups}}">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Max Age (D)</label>
+                            <input type="number" name="log_maxage" class="form-control form-control-sm" value="{{.Log.MaxAge}}">
+                        </div>
+                    </div>
+                    <div class="d-flex flex-column gap-2 border-top pt-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="log_stdout" id="logStdout" {{if .Log.UseStdOut}}checked{{end}}>
+                            <label class="form-check-label small" for="logStdout">Logs to Stdout</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="log_compress" id="logCompress" {{if .Log.Compress}}checked{{end}}>
+                            <label class="form-check-label small" for="logCompress">Compress rotated logs</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    function addRow() {
+        const tbody = document.getElementById('tuns-body');
+        const row = document.createElement('tr');
+        row.className = 'tun-row';
+        row.innerHTML = `
+            <td><input type="text" name="tun_name[]" class="form-control form-control-sm code-font" required placeholder="tunX"></td>
+            <td><input type="number" name="tun_table[]" class="form-control form-control-sm" value="100" required></td>
+            <td><input type="number" name="tun_mark[]" class="form-control form-control-sm" value="1" required></td>
+            <td class="text-center">
+                <div class="form-check d-flex justify-content-center">
+                    <input type="checkbox" class="form-check-input" onchange="updateHidden(this)">
+                    <input type="hidden" name="tun_disable[]" value="false">
+                </div>
+            </td>
+            <td class="text-end">
+                <button type="button" class="btn btn-link btn-remove p-0" onclick="removeRow(this)">&times;</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    }
+
+    function removeRow(btn) {
+        btn.closest('tr').remove();
+    }
+
+    function updateHidden(cb) {
+        cb.nextElementSibling.value = cb.checked ? "true" : "false";
+    }
+</script>
+
+<footer class="mt-5 py-4 text-center text-muted border-top bg-white">
+    <small>TunsGo Control Panel &copy; 2026</small>
+</footer>
+
+<script src="/st/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>TunsGo - Dashboard</title>
+    {{template "head.go.html" .}}
+    <style>
+        :root {
+            --tg-border-color: #e9ecef;
+            --tg-primary: #0d6efd;
+        }
+        .card { border: 1px solid var(--tg-border-color); border-radius: 8px; }
+        .managed-row { border-left: 4px solid var(--tg-primary); }
+        .table thead th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+            color: #6c757d;
+        }
+        .code-font { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.85rem; }
+        .btn-action {
+            font-size: 0.8rem;
+            padding: 0.375rem 0.75rem;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s;
+            min-width: 120px;
+            text-align: center;
+        }
+        .btn-setup { border: 1px solid var(--tg-primary); color: var(--tg-primary); }
+        .btn-setup:hover { background: var(--tg-primary); color: white; }
+        .btn-edit { border: 1px solid #6c757d; color: #6c757d; }
+        .btn-edit:hover { background: #6c757d; color: white; }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+    <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+            <img src="/st/favicon-32x32.png" width="30" height="30" class="me-2" alt="">
+            TunsGo
+        </a>
+        <div class="navbar-nav ms-auto">
+            <a class="nav-link active" href="/">Status</a>
+            <a class="nav-link" href="/config">Configuration</a>
+            <a class="nav-link" href="/dns">DNS</a>
+            <a class="nav-link" href="/logs">Logs</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row align-items-center mb-4">
+        <div class="col-md-4">
+            <h2 class="h5 mb-0">System Overview</h2>
+            <p class="text-muted small mb-0">Real-time performance metrics</p>
+        </div>
+        <div class="col-md-8">
+            <div class="d-flex justify-content-md-end gap-3 mt-3 mt-md-0">
+                <div class="bg-white border rounded px-3 py-2 shadow-sm d-flex align-items-center">
+                    <div class="me-3">
+                        <div class="text-muted mb-0" style="font-size: 0.7rem; text-transform: uppercase; font-weight: 600;">CPU Load</div>
+                        <div class="fw-bold">{{.Status.OSStatus.CPU}}</div>
+                    </div>
+                    <div class="progress" style="width: 60px; height: 6px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{.Status.OSStatus.CPU}}"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white border rounded px-3 py-2 shadow-sm d-flex align-items-center">
+                    <div class="me-3">
+                        <div class="text-muted mb-0" style="font-size: 0.7rem; text-transform: uppercase; font-weight: 600;">Memory Usage</div>
+                        <div class="fw-bold" style="font-size: 0.9rem;">{{.Status.OSStatus.Memory}}</div>
+                    </div>
+                </div>
+
+                <div class="bg-white border rounded px-3 py-2 shadow-sm d-flex align-items-center">
+                    <div>
+                        <div class="text-muted mb-0" style="font-size: 0.7rem; text-transform: uppercase; font-weight: 600;">Uptime</div>
+                        <div class="fw-bold text-dark" style="font-size: 0.9rem;">{{.Status.OSStatus.Uptime}}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Interface</th>
+                    <th>Network / MTU</th>
+                    <th>Traffic (Rx/Tx)</th>
+                    <th>TunsGo Management</th>
+                    <th class="text-end pe-3">Status</th>
+                    <th class="text-end pe-4">Action</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{range .Status.Interfaces}}
+                    <tr class="{{if .IsManaged}}managed-row{{end}}">
+                        <td class="ps-3">
+                            <div class="fw-bold">{{.Name}}</div>
+                            {{if .IsLoopback}}
+                                <div class="text-muted small">Loopback</div>
+                            {{else}}
+                                <div class="text-muted small">Physical</div>
+                            {{end}}
+                        </td>
+                        <td>
+                            {{range .Addresses}}
+                                <div class="code-font text-primary">{{.}}</div>
+                            {{end}}
+                            <div class="text-muted small">MTU: {{.MTU}}</div>
+                        </td>
+                        <td>
+                            <div class="small"><span class="text-success">↓</span> {{.RxBytes}}</div>
+                            <div class="small"><span class="text-primary">↑</span> {{.TxBytes}}</div>
+                        </td>
+                        <td>
+                            {{if .IsManaged}}
+                                <div class="small"><strong>Table:</strong> {{.TableID}} | <strong>Mark:</strong> {{.FWMark}}</div>
+                                <div class="badge bg-primary-subtle text-primary border border-primary-subtle mt-1">
+                                    {{len .TargetIPs}} IPs Routed
+                                </div>
+                            {{else}}
+                                <span class="text-muted small italic">Unmanaged</span>
+                            {{end}}
+                        </td>
+                        <td class="text-end pe-3">
+                            {{if .IsUp}}
+                                <span class="badge bg-success">UP</span>
+                            {{else}}
+                                <span class="badge bg-secondary">DOWN</span>
+                            {{end}}
+                        </td>
+                        <td class="text-end pe-4">
+                            {{if not .IsLoopback}}
+                            {{if .IsManaged}}
+                                <a href="/tunnels/edit/{{.Name}}" class="btn btn-edit btn-action">
+                                    Edit Tunnel
+                                </a>
+                            {{else}}
+                                <a href="/tunnels/create?iface={{.Name}}" class="btn btn-setup btn-action">
+                                    Create Tunnel
+                                </a>
+                            {{end}}
+                            {{end}}
+                        </td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white fw-bold py-3">DNS Configuration</div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="text-muted small d-block">Listening On</label>
+                <code class="text-dark fw-bold">{{.Config.DNS.Listen}}</code>
+            </div>
+            <div class="mb-3">
+                <label class="text-muted small d-block">Upstream Server</label>
+                <span class="code-font">{{.Config.DNS.Upstream}}</span>
+            </div>
+            <hr>
+            <h6 class="small fw-bold text-uppercase mb-2">Active Domain Lists</h6>
+            {{range .Status.Interfaces}}
+                {{if .Domains}} <div class="mb-3">
+                    <div class="d-flex align-items-center mb-1">
+                        <span class="fw-bold small">{{.Name}}</span>
+                        <span class="ms-2 border-top flex-grow-1 opacity-10"></span>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        {{range .Domains}}
+                            <span class="badge bg-light text-dark border fw-normal" style="font-size: 0.75rem;">{{.}}</span>
+                        {{end}}
+                    </div>
+                </div>
+                {{end}}
+            {{else}}
+                <div class="text-center text-muted small py-3">No active domain lists found</div>
+            {{end}}
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white fw-bold py-3">Quick Actions</div>
+        <div class="card-body d-flex flex-column gap-2">
+                <button class="btn btn-danger w-100">
+                    Restart Service
+                </button>
+        </div>
+    </div>
+</div>
+
+
+<footer class="mt-5 py-4 text-center text-muted border-top bg-white">
+    <small>TunsGo Control Panel &copy; 2026</small>
+</footer>
+
+<script src="/st/bootstrap.bundle.min.js"></script>
+</body>
+</html>
