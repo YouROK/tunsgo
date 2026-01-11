@@ -21,28 +21,7 @@ func NewDNS(tunnels []*Tunnel) *DNS {
 }
 
 func (d *DNS) Start() {
-	//init tunnels
-	isDnsForward := false
-	for _, t := range d.tunnels {
-		err := t.Setup()
-		if err != nil {
-			log.Println("Error setup tunnel:", t.tun.TunName, err)
-			os.Exit(1)
-		}
-		if isDnsForward && config.Cfg.DNS.ForwardTun != "" && t.tun.TunName == config.Cfg.DNS.ForwardTun {
-			dnsip, _, err := net.SplitHostPort(config.Cfg.DNS.Upstream)
-			if err == nil {
-				log.Println("Using DNS forward VPN")
-				t.AddIP(net.ParseIP(dnsip))
-				isDnsForward = true
-			} else {
-				log.Println("Error parsing DNS forward VPN:", err)
-				log.Println("Disabling DNS forward VPN")
-			}
-		}
-	}
-
-	//fill tunnels ip
+	d.initTunnels()
 	d.fillRouteTable()
 
 	//serve dns
@@ -122,6 +101,28 @@ func (d *DNS) findRouter(domain string) *Tunnel {
 		}
 	}
 	return nil
+}
+
+func (d *DNS) initTunnels() {
+	isDnsForward := false
+	for _, t := range d.tunnels {
+		err := t.Setup()
+		if err != nil {
+			log.Println("Error setup tunnel:", t.tun.TunName, err)
+			os.Exit(1)
+		}
+		if !isDnsForward && config.Cfg.DNS.ForwardTun != "" && t.tun.TunName == config.Cfg.DNS.ForwardTun {
+			dnsip, _, err := net.SplitHostPort(config.Cfg.DNS.Upstream)
+			if err == nil {
+				log.Println("Using DNS forward VPN")
+				t.AddIP(net.ParseIP(dnsip))
+				isDnsForward = true
+			} else {
+				log.Println("Error parsing DNS forward VPN:", err)
+				log.Println("Disabling DNS forward VPN")
+			}
+		}
+	}
 }
 
 func (d *DNS) fillRouteTable() {
