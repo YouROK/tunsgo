@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 
@@ -9,113 +8,64 @@ import (
 )
 
 type Config struct {
-	FillRouteTable bool `yaml:"fill_route_table"`
+	Server struct {
+		Slots     int `yaml:"slots"`
+		SlotSleep int `yaml:"slot_sleep"`
+	} `yaml:"server"`
 
-	Tuns []*TunConfig `yaml:"tuns"`
+	P2P struct {
+		LowConns int  `yaml:"low_conns"`
+		HiConns  int  `yaml:"hi_conns"`
+		IsRelay  bool `yaml:"is_relay"`
+	} `yaml:"p2p"`
 
-	DNS struct {
-		ForwardTun string `yaml:"forward_tun"`
-		Listen     string `yaml:"listen"`
-		Upstream   string `yaml:"upstream"`
-		UseCache   bool   `yaml:"use_cache"`
-	} `yaml:"dns"`
-
-	Log struct {
-		UseStdOut  bool   `yaml:"use_std_out"`
-		MaxSize    int    `yaml:"max_size"`
-		MaxBackups int    `yaml:"max_backups"`
-		MaxAge     int    `yaml:"max_age"`
-		Compress   bool   `yaml:"compress"`
-		Filename   string `yaml:"file_name"`
-	} `yaml:"log"`
-
-	Web struct {
-		Host  string `yaml:"host"`
-		Port  int    `yaml:"port"`
-		Login string `yaml:"login"`
-		Pass  string `yaml:"pass"`
-	} `yaml:"web"`
+	Hosts struct {
+		Whitelist []string `yaml:"whitelist"`
+		Blacklist []string `yaml:"blacklist"`
+	} `yaml:"hosts"`
 }
 
-type TunConfig struct {
-	TunName     string `yaml:"tun"`
-	TableID     int    `yaml:"table_id"`
-	ForwardMark uint32 `yaml:"fw_mark"`
-	Disable     bool   `yaml:"disable"`
+func DefaultConfig() *Config {
+	cfg := &Config{}
+	cfg.Server.Slots = 5
+	cfg.Server.SlotSleep = 1
+	cfg.P2P.LowConns = 30
+	cfg.P2P.HiConns = 50
+	cfg.P2P.IsRelay = false
+	cfg.Hosts.Whitelist = []string{"api.themoviedb.org", "images.tmdb.org"}
+	return cfg
 }
 
-var Cfg *Config
-
-func Load() error {
+func Load() (*Config, error) {
+	cfg := DefaultConfig()
 	dir := filepath.Dir(os.Args[0])
-	path := filepath.Join(dir, "config.yaml")
+	filename := filepath.Join(dir, "tuns.yaml")
 
-	Cfg = &Config{}
-
-	file, err := os.ReadFile(path)
+	data, err := os.ReadFile(filename)
 	if err != nil {
-		setDefaults()
-		err = Save()
-		log.Println("Error reading config file:", err)
-		log.Println("Using default configuration")
-		log.Println("Please set config")
-		if err != nil {
-			log.Println("Error save def config:", err)
+		if os.IsNotExist(err) {
+			err = cfg.Save()
+			return cfg, err
 		}
-		os.Exit(1)
-		return err
+		return nil, err
 	}
 
-	if err = yaml.Unmarshal(file, Cfg); err != nil {
-		log.Println("Error parse config:", err)
-		return err
+	err = yaml.Unmarshal(data, cfg)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	return cfg, nil
 }
 
-func setDefaults() {
-	Cfg.Tuns = []*TunConfig{
-		{
-			TunName:     "tun0",
-			TableID:     100,
-			ForwardMark: 1,
-		},
-	}
-
-	Cfg.DNS.Listen = ":53"
-	Cfg.DNS.Upstream = "9.9.9.9:53"
-	Cfg.DNS.UseCache = true
-	Cfg.DNS.ForwardTun = "tun0"
-
-	Cfg.FillRouteTable = true
-
-	Cfg.Log.MaxSize = 1
-	Cfg.Log.MaxBackups = 2
-	Cfg.Log.MaxAge = 7
-	Cfg.Log.Compress = true
-	Cfg.Log.Filename = "/opt/var/log/tunsgo.log"
-	Cfg.Log.UseStdOut = false
-
-	Cfg.Web.Host = ""
-	Cfg.Web.Port = 3001
-	Cfg.Web.Login = ""
-	Cfg.Web.Pass = ""
-}
-
-func Save() error {
+func (cfg *Config) Save() error {
 	dir := filepath.Dir(os.Args[0])
-	path := filepath.Join(dir, "config.yaml")
+	filename := filepath.Join(dir, "tuns.yaml")
 
-	data, err := yaml.Marshal(Cfg)
+	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(path, data, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(filename, data, 0644)
 }
