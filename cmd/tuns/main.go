@@ -19,7 +19,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server.StartDiscovery()
+	go server.StartDiscovery()
 
 	http.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
 		targetURL := r.URL.Query().Get("url")

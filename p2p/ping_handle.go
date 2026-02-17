@@ -3,7 +3,6 @@ package p2p
 import (
 	"encoding/json"
 	"gotuns/version"
-	"log"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
@@ -19,7 +18,6 @@ func (s *P2PServer) handlePingCommand(stream network.Stream) response {
 		go func() {
 			//Ожидание пока нас добавят
 			time.Sleep(time.Second)
-			log.Printf("[P2P] Узел %s добавил нас, ping его в ответ", rid.String())
 			s.pingCmd(rid)
 		}()
 	}

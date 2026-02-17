@@ -46,4 +46,10 @@ func (s *P2PServer) pingCmd(pid peer.ID) {
 	if !s.manager.Exist(pid) {
 		log.Printf("[P2P] Узел %s пинг: %v", pid.String(), latency)
 	}
+
+	protocols, err := s.host.Peerstore().SupportsProtocols(pid, "/libp2p/circuit/relay/0.2.0/hop")
+	if err == nil && len(protocols) > 0 {
+		log.Printf("[P2P] Узел %s поддерживает Relay! Сохраняю в кэш...", pid)
+		s.manager.AddRelay(pid, latency)
+	}
 }

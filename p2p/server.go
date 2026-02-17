@@ -5,13 +5,17 @@ import (
 	"gotuns/config"
 	"gotuns/version"
 	"log"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
+	"github.com/multiformats/go-multiaddr"
 )
 
 const (
@@ -49,6 +53,8 @@ func NewP2PServer(cfg *config.Config) (*P2PServer, error) {
 		return nil, err
 	}
 
+	savedRelays := loadRelays()
+
 	opts := []libp2p.Option{
 		libp2p.Identity(key),
 		libp2p.ListenAddrStrings(
@@ -59,6 +65,9 @@ func NewP2PServer(cfg *config.Config) (*P2PServer, error) {
 		libp2p.NATPortMap(),
 		libp2p.EnableRelay(),
 		libp2p.EnableHolePunching(),
+	}
+	if len(savedRelays) > 0 {
+		opts = append(opts, libp2p.EnableAutoRelayWithStaticRelays(savedRelays))
 	}
 
 	if cfg.P2P.IsRelay {
@@ -98,4 +107,27 @@ func (s *P2PServer) Stop() {
 	s.dht.Close()
 	s.host.Close()
 	s.cm.Close()
+}
+
+func loadRelays() []peer.AddrInfo {
+	var infos []peer.AddrInfo
+	bytes, err := os.ReadFile("relays.list")
+	if err != nil {
+		return infos
+	}
+
+	list := strings.Split(string(bytes), "\n")
+
+	for _, sAddr := range list {
+		ma, err := multiaddr.NewMultiaddr(sAddr)
+		if err != nil {
+			continue
+		}
+		pi, err := peer.AddrInfoFromP2pAddr(ma)
+		if err != nil {
+			continue
+		}
+		infos = append(infos, *pi)
+	}
+	return infos
 }

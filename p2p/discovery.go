@@ -2,7 +2,9 @@ package p2p
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -25,7 +27,11 @@ func strToCid(s string) cid.Cid {
 }
 
 func (s *P2PServer) StartDiscovery() {
-	go s.discoveryLoop()
+	s.bootstrap()
+	go s.announceDht()
+	if !s.cfg.P2P.IsRelay {
+		go s.discoveryPeers()
+	}
 }
 
 func (s *P2PServer) bootstrap() {
@@ -53,20 +59,40 @@ func (s *P2PServer) bootstrap() {
 	if err := s.dht.Bootstrap(s.ctx); err != nil {
 		log.Printf("[P2P] Ошибка DHT Bootstrap: %v", err)
 	}
+	// wait for bootstrap
+	time.Sleep(5 * time.Second)
 }
 
-func (s *P2PServer) discoveryLoop() {
-	s.bootstrap()
+func (s *P2PServer) announceDht() {
+	c := strToCid(RendezvousString)
+	ticker := time.NewTicker(20 * time.Minute)
+	defer ticker.Stop()
+	for {
+		log.Println("[P2P] Анонс в DHT")
+		provideCtx, cancelProvide := context.WithTimeout(s.ctx, 30*time.Second)
+		err := s.dht.Provide(provideCtx, c, true)
+		cancelProvide()
+		if err != nil {
+			log.Printf("[P2P] DHT Provide: %v", err)
+			time.Sleep(20 * time.Second)
+			continue
+		}
+
+		select {
+		case <-ticker.C:
+		case <-s.ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *P2PServer) discoveryPeers() {
 	c := strToCid(RendezvousString)
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for {
-		provideCtx, cancelProvide := context.WithTimeout(s.ctx, 30*time.Second)
-		if err := s.dht.Provide(provideCtx, c, true); err != nil {
-			log.Printf("[P2P] DHT Provide: %v", err)
-		}
-		cancelProvide()
+		log.Println("[P2P] Поиск узлов")
 
 		findCtx, cancelFind := context.WithTimeout(s.ctx, 20*time.Second)
 		peers := s.dht.FindProvidersAsync(findCtx, c, 20)
@@ -76,11 +102,13 @@ func (s *P2PServer) discoveryLoop() {
 				continue
 			}
 
+			log.Println("[P2P] Найден узел:", p.ID)
 			if s.host.Network().Connectedness(p.ID) != network.Connected {
+				log.Println("[P2P] Соединение с узлом:", p.ID)
 				err := s.host.Connect(s.ctx, p)
 				if err == nil {
 					if !s.manager.Exist(p.ID) {
-						log.Printf("[P2P] Новый узел: %s", p.ID)
+						log.Printf("[P2P] Подключился: %s", p.ID)
 						go s.pingCmd(p.ID)
 					}
 				}
@@ -88,10 +116,37 @@ func (s *P2PServer) discoveryLoop() {
 		}
 		cancelFind()
 
+		if s.manager.Peers() == 0 {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		s.saveRelays()
+
 		select {
 		case <-ticker.C:
 		case <-s.ctx.Done():
 			return
 		}
 	}
+}
+
+func (s *P2PServer) saveRelays() {
+	list := s.manager.GetRelays()
+	if len(list) == 0 {
+		return
+	}
+
+	rawlist := ""
+
+	for _, info := range list {
+		addrs := s.host.Peerstore().Addrs(info.ID)
+		for _, addr := range addrs {
+			fullAddr := fmt.Sprintf("%s/p2p/%s\n", addr.String(), info.ID.String())
+			rawlist += fullAddr
+		}
+	}
+
+	os.WriteFile("relays.list", []byte(rawlist), 0644)
+	log.Println("[P2P] Список relays сохранен в relays.list")
 }
