@@ -1,11 +1,18 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"gotuns/config"
 	"gotuns/p2p"
+	"gotuns/version"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -14,38 +21,36 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server, err := p2p.NewP2PServer(cfg)
+	ProtocolID := "/tunsgo/" + version.Version
+	RendezvousString := "tunsgo-discovery-0007"
+
+	server, err := p2p.NewP2PServer(cfg, ProtocolID, RendezvousString)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	go server.StartDiscovery()
+	gin.SetMode(gin.ReleaseMode)
+	route := gin.New()
 
-	http.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
-		targetURL := r.URL.Query().Get("url")
+	route.Use(gin.Logger(), gin.Recovery())
 
-		if targetURL == "" {
-			http.Error(w, "Missing 'url' parameter. Usage: /proxy?url=http://...", http.StatusBadRequest)
-			return
+	// Маршруты прокси
+	route.Any("/proxy", server.GinHandler)
+
+	httpSrv := &http.Server{
+		Addr:    ":8080",
+		Handler: route,
+	}
+
+	go func() {
+		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("HTTP server error: %s\n", err)
 		}
-
-		log.Printf("[HTTP] Получен запрос на проксирование: %s", targetURL)
-
-		buf, err := server.SendRequestProxy(targetURL)
-		if err != nil {
-			log.Printf("[HTTP] Ошибка P2P: %v", err)
-			http.Error(w, "P2P error: "+err.Error(), http.StatusBadGateway)
-			return
-		}
-
-		contentType := http.DetectContentType(buf)
-		w.Header().Set("Content-Type", contentType)
-
-		w.Write(buf)
-	})
-
+	}()
 	fmt.Println("HTTP сервер запущен на :8080")
-	http.ListenAndServe(":8080", nil)
 
-	select {}
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	<-sigc
+	server.Stop()
 }

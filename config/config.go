@@ -14,25 +14,26 @@ type Config struct {
 	} `yaml:"server"`
 
 	P2P struct {
-		LowConns int  `yaml:"low_conns"`
-		HiConns  int  `yaml:"hi_conns"`
-		IsRelay  bool `yaml:"is_relay"`
+		LowConns int `yaml:"low_conns"`
+		HiConns  int `yaml:"hi_conns"`
 	} `yaml:"p2p"`
 
 	Hosts struct {
-		Whitelist []string `yaml:"whitelist"`
-		Blacklist []string `yaml:"blacklist"`
+		ProvidedHosts []string `yaml:"provided_hosts"`
 	} `yaml:"hosts"`
 }
 
 func DefaultConfig() *Config {
 	cfg := &Config{}
+
 	cfg.Server.Slots = 5
 	cfg.Server.SlotSleep = 1
-	cfg.P2P.LowConns = 30
+
+	cfg.P2P.LowConns = 20
 	cfg.P2P.HiConns = 50
-	cfg.P2P.IsRelay = false
-	cfg.Hosts.Whitelist = []string{"api.themoviedb.org", "images.tmdb.org"}
+
+	cfg.Hosts.ProvidedHosts = []string{"*themoviedb.org", "*tmdb.org"}
+
 	return cfg
 }
 

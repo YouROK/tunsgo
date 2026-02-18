@@ -1,4 +1,4 @@
-package p2p
+package cmds
 
 import (
 	"context"
@@ -20,13 +20,12 @@ type response struct {
 }
 
 func (s *P2PServer) sendToPeer(pid peer.ID, req *envelope) (*response, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
 	defer cancel()
 
 	stream, err := s.host.NewStream(ctx, pid, ProtocolID)
 	if err != nil {
 		log.Printf("[P2P] Ошибка соединения с узлом %s: %v", pid, err)
-		s.manager.Remove(pid)
 		return nil, err
 	}
 	defer stream.Close()
@@ -35,7 +34,6 @@ func (s *P2PServer) sendToPeer(pid peer.ID, req *envelope) (*response, error) {
 
 	if _, err = stream.Write(envBytes); err != nil {
 		log.Printf("[P2P] Ошибка отправки сообщения %s: %v", pid, err)
-		s.manager.Remove(pid)
 		return nil, err
 	}
 	stream.CloseWrite()

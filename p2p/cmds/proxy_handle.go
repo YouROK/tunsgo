@@ -1,4 +1,4 @@
-package p2p
+package cmds
 
 import (
 	"encoding/json"
@@ -105,20 +105,13 @@ func inList(host string, list []string) bool {
 }
 
 func (s *P2PServer) isHostAllowed(host string) bool {
-	whiteLen := len(s.cfg.Hosts.Whitelist)
-	blackLen := len(s.cfg.Hosts.Blacklist)
+	whiteLen := len(s.cfg.Hosts.ProvidedHosts)
 
 	if whiteLen > 0 {
-		if inList(host, s.cfg.Hosts.Whitelist) {
+		if inList(host, s.cfg.Hosts.ProvidedHosts) {
 			return true
 		}
-		return false
 	}
 
-	if blackLen > 0 {
-		if inList(host, s.cfg.Hosts.Blacklist) {
-			return false
-		}
-	}
-	return true
+	return false
 }

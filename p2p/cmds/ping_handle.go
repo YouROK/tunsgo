@@ -1,26 +1,25 @@
-package p2p
+package cmds
 
 import (
 	"encoding/json"
 	"gotuns/version"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
 )
 
 func (s *P2PServer) handlePingCommand(stream network.Stream) response {
 	hData, _ := json.Marshal(handshakeData{
-		Version: version.Version,
+		Version:       version.Version,
+		ProvidedHosts: s.cfg.Hosts.ProvidedHosts,
 	})
 
-	rid := stream.Conn().RemotePeer()
-	if !s.manager.Exist(rid) {
-		go func() {
-			//Ожидание пока нас добавят
-			time.Sleep(time.Second)
-			s.pingCmd(rid)
-		}()
-	}
+	//rid := stream.Conn().RemotePeer()
+	//if !s.manager.Exist(rid) {
+	//	go func() {
+	//		time.Sleep(time.Second)
+	//		s.pingCmd(rid)
+	//	}()
+	//}
 
 	return response{Type: "ping", Data: hData}
 }
