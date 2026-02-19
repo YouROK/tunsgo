@@ -1,4 +1,4 @@
-module gotuns
+module github.com/yourok/tunsgo
 
 go 1.25.5
 
