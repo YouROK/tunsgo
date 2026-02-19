@@ -60,6 +60,9 @@ func (s *P2PServer) addPeer(info *peerInfo) {
 	s.muPeers.Lock()
 	s.peers[pID] = info
 	s.muPeers.Unlock()
+	s.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
+		return 40
+	})
 }
 
 func (s *P2PServer) cleanupPeersGC() {

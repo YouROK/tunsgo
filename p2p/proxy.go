@@ -89,19 +89,43 @@ func (s *P2PServer) SendRequestProxy(reqData *P2PProxyRequest) (*P2PProxyRespons
 		if err != nil {
 			lastErr = err
 			log.Printf("[P2P] Ошибка от пира %s: %v", pID, err)
+			s.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
+				if current > 10 {
+					return current - 10
+				}
+				return 0
+			})
 			continue
 		}
 
 		if resp.StatusCode == 600 {
 			log.Printf("[P2P] У пира нет свободных слотов %s", pID)
+			s.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
+				if current > 20 {
+					return current - 20
+				}
+				return 0
+			})
 			continue
 		}
 
 		if resp.StatusCode > 600 {
 			log.Printf("[P2P] Ошибка при выполнении запроса %s: %v", pID, string(resp.Body))
+			s.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
+				if current > 10 {
+					return current - 10
+				}
+				return 0
+			})
 			continue
 		}
 
+		s.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
+			if current < 90 {
+				return current + 10
+			}
+			return 100
+		})
 		return resp, nil
 	}
 
