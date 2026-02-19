@@ -53,7 +53,7 @@ func NewP2PServer(cfg *config.Config, protocolID, rendezvous string) (*P2PServer
 	cm, err := connmgr.NewConnManager(
 		cfg.P2P.LowConns,
 		cfg.P2P.HiConns,
-		connmgr.WithGracePeriod(time.Minute),
+		connmgr.WithGracePeriod(time.Second*30),
 	)
 	if err != nil {
 		return nil, err
@@ -134,6 +134,7 @@ func NewP2PServer(cfg *config.Config, protocolID, rendezvous string) (*P2PServer
 
 func (s *P2PServer) Stop() {
 	log.Println("[P2P] Остановка сервера...")
+	s.topic.Close()
 	s.dht.Close()
 	s.host.Close()
 	s.cm.Close()
