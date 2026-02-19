@@ -103,7 +103,7 @@ func (s *P2PServer) discoveryPeers() {
 				if err == nil {
 					log.Printf("[P2P] Подключился: %s", p.ID)
 				} else {
-					log.Printf("[P2P] Ошибка соединения с узлом %s: %v", p.ID, err)
+					log.Printf("[P2P] Ошибка соединения с узлом %s", p.ID)
 				}
 			}
 		}
