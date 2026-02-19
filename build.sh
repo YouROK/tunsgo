@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Настройки сборки
 LDFLAGS="-s -w"
 TAGS=""
 SRC="./cmd/tuns/main.go"
