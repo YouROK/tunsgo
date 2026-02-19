@@ -22,7 +22,7 @@ func main() {
 	}
 
 	ProtocolID := "/tunsgo/" + version.Version
-	RendezvousString := "tunsgo-discovery-0007"
+	RendezvousString := "tunsgo-peers-0008"
 
 	server, err := p2p.NewP2PServer(cfg, ProtocolID, RendezvousString)
 	if err != nil {
@@ -36,6 +36,10 @@ func main() {
 
 	// Маршруты прокси
 	route.Any("/proxy", server.GinHandler)
+	route.GET("/status", func(c *gin.Context) {
+		st := server.Status()
+		c.JSON(http.StatusOK, st)
+	})
 
 	httpSrv := &http.Server{
 		Addr:    ":8080",
