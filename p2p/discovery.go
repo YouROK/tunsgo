@@ -17,7 +17,7 @@ func (s *P2PServer) startDiscovery() {
 	s.bootstrap()
 	go s.announceDht()
 	go s.discoveryPeers()
-	if len(s.cfg.Hosts.ProvidedHosts) > 0 {
+	if len(s.opts.Hosts) > 0 {
 		go s.announceHosts()
 	}
 	go s.listenForAnnouncements()
@@ -30,7 +30,7 @@ func (s *P2PServer) bootstrap() {
 	wa.Add(len(dht.DefaultBootstrapPeers))
 
 	go func() {
-		log.Println("[P2P] Подключение к bootstrap")
+		log.Println("[P2P] Bootstrap...")
 		for _, addrStr := range dht.DefaultBootstrapPeers {
 			addr, _ := multiaddr.NewMultiaddr(addrStr.String())
 			pi, _ := peer.AddrInfoFromP2pAddr(addr)
@@ -39,7 +39,7 @@ func (s *P2PServer) bootstrap() {
 			if err := s.host.Connect(ctx, *pi); err == nil {
 				successConnections++
 			} else {
-				log.Printf("[P2P] Ошибка подключения к bootstrap-узлу %s: %v", pi.ID, err)
+				log.Printf("[P2P] Error connect to bootstrap node %s: %v", pi.ID, err)
 			}
 			cancel()
 			wa.Done()
@@ -49,31 +49,28 @@ func (s *P2PServer) bootstrap() {
 	wa.Wait()
 
 	if successConnections > 0 {
-		log.Printf("[P2P] Успешно подключено к %d бутстрап-узлам", successConnections)
+		log.Printf("[P2P] Connected to %d bootstrap nodes", successConnections)
 	} else {
-		log.Println("[P2P] Предупреждение: не удалось подключиться к стандартным бутстрапам")
+		log.Println("[P2P] Warn: do not connect to any bootstrap nodes")
 	}
 }
 
 func (s *P2PServer) announceDht() {
 
 	if err := s.dht.Bootstrap(s.ctx); err != nil {
-		log.Printf("[P2P] Ошибка DHT Bootstrap: %v", err)
+		log.Printf("[DHT] Error bootstrap DHT: %v", err)
 	}
 
 	ticker := time.NewTicker(20 * time.Minute)
 	defer ticker.Stop()
 	for {
-		log.Println("[P2P] Анонс в DHT")
 		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Minute)
 		err := s.dht.Provide(ctx, s.cId, true)
 		cancel()
 		if err != nil {
-			log.Printf("[P2P] DHT Provide: %v", err)
+			log.Printf("[DHT] Error announce to DHT: %v", err)
 			time.Sleep(20 * time.Second)
 			continue
-		} else {
-			log.Println("[P2P] В DHT анонсирован")
 		}
 
 		select {
@@ -90,7 +87,7 @@ func (s *P2PServer) discoveryPeers() {
 
 	for {
 		ctx, cancel := context.WithTimeout(s.ctx, 1*time.Minute)
-		peers := s.dht.FindProvidersAsync(ctx, s.cId, min(s.cfg.P2P.LowConns, 20))
+		peers := s.dht.FindProvidersAsync(ctx, s.cId, min(s.opts.P2P.LowConns, 20))
 
 		for p := range peers {
 			if p.ID == s.host.ID() || len(p.Addrs) == 0 {
@@ -98,13 +95,7 @@ func (s *P2PServer) discoveryPeers() {
 			}
 
 			if s.host.Network().Connectedness(p.ID) != network.Connected {
-				log.Println("[P2P] Соединение с узлом:", p.ID)
-				err := s.host.Connect(s.ctx, p)
-				if err == nil {
-					log.Printf("[P2P] Подключился: %s", p.ID)
-				} else {
-					log.Printf("[P2P] Ошибка соединения с узлом %s", p.ID)
-				}
+				s.host.Connect(s.ctx, p)
 			}
 		}
 		cancel()

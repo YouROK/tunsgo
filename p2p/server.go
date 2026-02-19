@@ -2,7 +2,6 @@ package p2p
 
 import (
 	"context"
-	"gotuns/config"
 	"log"
 	"net/http"
 	"sync"
@@ -12,12 +11,16 @@ import (
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multihash"
+	"github.com/yourok/tunsgo/opts"
+	"github.com/yourok/tunsgo/version"
 )
 
 type P2PServer struct {
@@ -34,7 +37,7 @@ type P2PServer struct {
 	ps    *pubsub.PubSub
 	topic *pubsub.Topic
 
-	cfg *config.Config
+	opts *opts.Options
 
 	peers   map[peer.ID]*peerInfo
 	muPeers sync.RWMutex
@@ -42,24 +45,38 @@ type P2PServer struct {
 	httpClient *http.Client
 }
 
-func NewP2PServer(cfg *config.Config, protocolID, rendezvous string) (*P2PServer, error) {
+func NewP2PServer(protocolID, rendezvous string, opts *opts.Options) (*P2PServer, error) {
+	log.Println("[P2P Server] Starting...")
+	log.Println("[P2P Server] Version:", version.Version)
+	log.Println("[P2P Server] Provide hosts:", opts.Hosts)
+
 	key, err := LoadOrCreateIdentity()
 	if err != nil {
 		return nil, err
 	}
 
+	if opts.Server.Slots < 1 { //min 1 slot
+		opts.Server.Slots = 1
+	}
+	if opts.Server.SlotSleep < 0 { // min sleep 0
+		opts.Server.SlotSleep = 0
+	}
+	if opts.Server.SlotSleep > 300 { //max sleep 5 min
+		opts.Server.SlotSleep = 0
+	}
+
 	ctx := context.Background()
 
 	cm, err := connmgr.NewConnManager(
-		cfg.P2P.LowConns,
-		cfg.P2P.HiConns,
+		opts.P2P.LowConns,
+		opts.P2P.HiConns,
 		connmgr.WithGracePeriod(time.Second*30),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	opts := []libp2p.Option{
+	optsLp2p := []libp2p.Option{
 		libp2p.Identity(key),
 		libp2p.ChainOptions(libp2p.DefaultPrivateTransports),
 		libp2p.Security(tls.ID, tls.New),
@@ -78,7 +95,7 @@ func NewP2PServer(cfg *config.Config, protocolID, rendezvous string) (*P2PServer
 		libp2p.EnableHolePunching(),
 	}
 
-	h, err := libp2p.New(opts...)
+	h, err := libp2p.New(optsLp2p...)
 	if err != nil {
 		cm.Close()
 		return nil, err
@@ -114,13 +131,13 @@ func NewP2PServer(cfg *config.Config, protocolID, rendezvous string) (*P2PServer
 		ctx:        ctx,
 		cm:         cm,
 		protocolID: protocol.ID(protocolID),
-		cfg:        cfg,
+		opts:       opts,
 		cId:        c,
 		ps:         ps,
 		topic:      topic,
 		peers:      make(map[peer.ID]*peerInfo),
 		httpClient: &http.Client{Timeout: 20 * time.Second},
-		slots:      make([]time.Time, cfg.Server.Slots),
+		slots:      make([]time.Time, opts.Server.Slots),
 	}
 
 	h.SetStreamHandler(srv.protocolID, srv.handleInboundStream)
@@ -129,13 +146,53 @@ func NewP2PServer(cfg *config.Config, protocolID, rendezvous string) (*P2PServer
 
 	log.Println("[P2P] ID", h.ID().String())
 
+	go srv.watchNetworkStatus()
+
 	return srv, nil
 }
 
 func (s *P2PServer) Stop() {
-	log.Println("[P2P] Остановка сервера...")
+	log.Println("[P2P Server] Stoping...")
 	s.topic.Close()
 	s.dht.Close()
 	s.host.Close()
 	s.cm.Close()
+}
+
+func (s *P2PServer) watchNetworkStatus() {
+	sub, err := s.host.EventBus().Subscribe([]interface{}{
+		new(event.EvtLocalReachabilityChanged),
+	})
+	if err != nil {
+		log.Printf("[NET] Failed to subscribe to reachability events: %v", err)
+		return
+	}
+
+	go func() {
+		defer sub.Close()
+
+		for {
+			select {
+			case e, ok := <-sub.Out():
+				if !ok {
+					log.Println("[NET] Event bus channel closed")
+					return
+				}
+
+				evt := e.(event.EvtLocalReachabilityChanged)
+				switch evt.Reachability {
+				case network.ReachabilityPublic:
+					log.Println("[NET] Reachability changed: PUBLIC. Node is now operating as a Relay Hop")
+				case network.ReachabilityPrivate:
+					log.Println("[NET] Reachability changed: PRIVATE. Node is operating behind NAT (client mode)")
+				case network.ReachabilityUnknown:
+					log.Println("[NET] Reachability changed: UNKNOWN. Determining network status...")
+				}
+
+			case <-s.ctx.Done():
+				log.Println("[NET] Stopping network reachability")
+				return
+			}
+		}
+	}()
 }

@@ -1,0 +1,29 @@
+package opts
+
+type Options struct {
+	Server struct {
+		Slots     int `yaml:"slots"`
+		SlotSleep int `yaml:"slot_sleep"`
+	} `yaml:"server"`
+
+	P2P struct {
+		LowConns int `yaml:"low_conns"`
+		HiConns  int `yaml:"hi_conns"`
+	} `yaml:"p2p"`
+
+	Hosts []string `yaml:"provided_hosts"`
+}
+
+func DefOptions() *Options {
+	cfg := &Options{}
+
+	cfg.Server.Slots = 5
+	cfg.Server.SlotSleep = 1
+
+	cfg.P2P.LowConns = 20
+	cfg.P2P.HiConns = 50
+
+	cfg.Hosts = []string{"*themoviedb.org", "*tmdb.org"}
+
+	return cfg
+}

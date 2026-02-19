@@ -14,15 +14,14 @@ func (s *P2PServer) announceHosts() {
 	for {
 		ann := peerInfo{
 			PeerID:    s.host.ID().String(),
-			Hosts:     s.cfg.Hosts.ProvidedHosts,
+			Hosts:     s.opts.Hosts,
 			Timestamp: time.Now().Unix(),
 		}
 
-		log.Println("[PubSub] Анонс в комнату")
 		data, _ := json.Marshal(ann)
 		err := s.topic.Publish(s.ctx, data)
 		if err != nil {
-			log.Println("[PubSub] Ошибка анонса в комнату:", err)
+			log.Println("[PUB] Error announce to room:", err)
 		}
 
 		select {
@@ -35,7 +34,7 @@ func (s *P2PServer) announceHosts() {
 
 func (s *P2PServer) listenForAnnouncements() {
 	sub, _ := s.topic.Subscribe()
-	log.Println("[PubSub] Слушаем комнату...")
+	log.Println("[PUB] Listen announcements...")
 	go s.cleanupPeersGC()
 	for {
 		msg, err := sub.Next(s.ctx)
@@ -49,7 +48,7 @@ func (s *P2PServer) listenForAnnouncements() {
 		var info *peerInfo
 		if err := json.Unmarshal(msg.Data, &info); err == nil {
 			s.addPeer(info)
-			log.Printf("[P2P] Узел %s имеет хосты %v", info.PeerID, info.Hosts)
+			log.Printf("[PUB] Node %s have hosts %v", info.PeerID, info.Hosts)
 		}
 	}
 }
@@ -61,7 +60,7 @@ func (s *P2PServer) addPeer(info *peerInfo) {
 	s.peers[pID] = info
 	s.muPeers.Unlock()
 	s.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
-		return 40
+		return 60
 	})
 }
 
@@ -94,7 +93,7 @@ func (s *P2PServer) cleanupPeers() {
 	for pID, info := range s.peers {
 		isConnected := connectedMap[pID]
 		if !isConnected && now.Sub(info.LastSeen) > 5*time.Minute {
-			log.Printf("[P2P] GC: удаление неактивного пира %s", pID)
+			log.Printf("[P2P] GC: removed unusable node from list %s", pID)
 			delete(s.peers, pID)
 		}
 	}

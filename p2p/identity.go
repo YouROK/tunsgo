@@ -10,7 +10,7 @@ import (
 
 func LoadOrCreateIdentity() (crypto.PrivKey, error) {
 	dir := filepath.Dir(os.Args[0])
-	filename := filepath.Join(dir, "peer.key")
+	filename := filepath.Join(dir, "node.key")
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		priv, _, err := crypto.GenerateEd25519Key(rand.Reader)
 		if err != nil {

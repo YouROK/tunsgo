@@ -24,62 +24,42 @@ func (s *P2PServer) handleInboundStream(stream network.Stream) {
 	s.muSlots.Unlock()
 	defer func() {
 		s.muSlots.Lock()
-		s.slots[slot] = time.Now().Add(time.Second * time.Duration(s.cfg.Server.SlotSleep))
+		s.slots[slot] = time.Now().Add(time.Second * time.Duration(s.opts.Server.SlotSleep))
 		s.muSlots.Unlock()
 	}()
 
-	var p2pReq P2PProxyRequest
+	pid := stream.Conn().RemotePeer().String()
+
+	var p2pReq *P2PProxyRequest
 	decoder := json.NewDecoder(stream)
 	if err := decoder.Decode(&p2pReq); err != nil {
-		log.Printf("[P2P-Proxy] Ошибка декодирования запроса: %v", err)
-		json.NewEncoder(stream).Encode(P2PProxyResponse{StatusCode: 601, Body: []byte("Error: " + err.Error())})
+		log.Printf("[P2P-Proxy] Request decoding error: %v", err)
+		json.NewEncoder(stream).Encode(P2PProxyResponse{StatusCode: 601, Body: []byte(err.Error())})
 		return
 	}
 
-	u, err := url.Parse(p2pReq.URL)
-	if err != nil || !matchHost(s.cfg.Hosts.ProvidedHosts, u.Host) {
-		log.Printf("[P2P-Proxy] Блокировка: хост %s не в белом списке", p2pReq.URL)
+	log.Printf("[P2P-Proxy] Inbound request from %s: %v", pid, p2pReq.URL)
+
+	p2pResp, err, code := sendLocalRequest(s.httpClient, p2pReq, s.opts.Hosts)
+	if code == 602 {
+		log.Printf("[P2P-Proxy] Blocked: host %s is not whitelisted", p2pReq.URL)
 		json.NewEncoder(stream).Encode(P2PProxyResponse{StatusCode: 602, Body: []byte("not support this host")})
 		return
 	}
-
-	httpReq, err := http.NewRequest(p2pReq.Method, p2pReq.URL, bytes.NewReader(p2pReq.Body))
-	if err != nil {
-		log.Printf("[P2P-Proxy] Ошибка создания HTTP запроса: %v", err)
-		json.NewEncoder(stream).Encode(P2PProxyResponse{StatusCode: 603, Body: []byte("Error: " + err.Error())})
+	if code == 603 {
+		log.Printf("[P2P-Proxy] Error creating HTTP request: %v", err)
+		json.NewEncoder(stream).Encode(P2PProxyResponse{StatusCode: 603, Body: []byte(err.Error())})
 		return
 	}
-
-	for k, v := range p2pReq.Headers {
-		httpReq.Header.Set(k, v)
-	}
-	httpReq.Header.Set("User-Agent", "Mozilla/5.0 (P2P Proxy Node)")
-
-	resp, err := s.httpClient.Do(httpReq)
-
-	p2pResp := P2PProxyResponse{}
-
-	if err != nil {
-		log.Printf("[P2P-Proxy] Ошибка выполнения HTTP: %v", err)
-		p2pResp.StatusCode = 603
-		p2pResp.Body = []byte("Error: " + err.Error())
-	} else {
-		defer resp.Body.Close()
-
-		body, _ := io.ReadAll(resp.Body)
-
-		p2pResp.StatusCode = resp.StatusCode
-		p2pResp.Body = body
-		p2pResp.Headers = make(map[string]string)
-
-		for k, v := range resp.Header {
-			p2pResp.Headers[k] = v[0]
-		}
+	if code == 604 {
+		log.Printf("[P2P-Proxy] Error receiving HTTP request: %v", err)
+		json.NewEncoder(stream).Encode(P2PProxyResponse{StatusCode: 604, Body: []byte(err.Error())})
+		return
 	}
 
 	encoder := json.NewEncoder(stream)
 	if err := encoder.Encode(p2pResp); err != nil {
-		log.Printf("[P2P-Proxy] Ошибка отправки ответа в стрим: %v", err)
+		log.Printf("[P2P-Proxy] Error sending response to node %s: %v", pid, err)
 	}
 }
 
@@ -92,4 +72,40 @@ func (s *P2PServer) findFreeSlots() int {
 		}
 	}
 	return -1
+}
+
+func sendLocalRequest(cli *http.Client, req *P2PProxyRequest, hosts []string) (*P2PProxyResponse, error, int) {
+	u, err := url.Parse(req.URL)
+	if err != nil || !matchHost(hosts, u.Host) {
+		return nil, err, 602
+	}
+
+	httpReq, err := http.NewRequest(req.Method, req.URL, bytes.NewReader(req.Body))
+	if err != nil {
+		return nil, err, 603
+	}
+
+	for k, v := range req.Headers {
+		httpReq.Header.Set(k, v)
+	}
+
+	resp, err := cli.Do(httpReq)
+	if err != nil {
+		return nil, err, 604
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	p2pResp := &P2PProxyResponse{
+		StatusCode: resp.StatusCode,
+		Headers:    make(map[string]string),
+		Body:       body,
+	}
+
+	for k, v := range resp.Header {
+		p2pResp.Headers[k] = v[0]
+	}
+
+	return p2pResp, nil, 0
 }
