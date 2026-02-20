@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/yourok/tunsgo/p2p/models"
 )
 
 func (s *P2PServer) announceHosts() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 	for {
-		ann := peerInfo{
+		ann := models.PeerInfo{
 			PeerID:    s.host.ID().String(),
 			Hosts:     s.opts.Hosts,
 			Timestamp: time.Now().Unix(),
@@ -45,7 +46,7 @@ func (s *P2PServer) listenForAnnouncements() {
 			continue
 		}
 
-		var info *peerInfo
+		var info *models.PeerInfo
 		if err := json.Unmarshal(msg.Data, &info); err == nil {
 			s.addPeer(info)
 			log.Printf("[PUB] Node %s have hosts %v", info.PeerID, info.Hosts)
@@ -53,7 +54,7 @@ func (s *P2PServer) listenForAnnouncements() {
 	}
 }
 
-func (s *P2PServer) addPeer(info *peerInfo) {
+func (s *P2PServer) addPeer(info *models.PeerInfo) {
 	pID, _ := peer.Decode(info.PeerID)
 	info.LastSeen = time.Now()
 	s.muPeers.Lock()
