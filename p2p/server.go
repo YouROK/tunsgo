@@ -17,6 +17,7 @@ import (
 	"github.com/yourok/tunsgo/opts"
 	"github.com/yourok/tunsgo/p2p/models"
 	"github.com/yourok/tunsgo/p2p/services"
+	"github.com/yourok/tunsgo/p2p/services/pex"
 	"github.com/yourok/tunsgo/p2p/services/urlproxy"
 	"github.com/yourok/tunsgo/version"
 )
@@ -131,6 +132,8 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 
 	srv.urlprx = urlproxy.NewUrlProxy(srvctx)
 	srv.srvc.AddService(srv.urlprx)
+
+	srv.srvc.AddService(pex.NewPex(srvctx))
 
 	err = srv.srvc.Start()
 	if err != nil {
