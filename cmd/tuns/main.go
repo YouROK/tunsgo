@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,7 +17,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const defRendezvous = "tunsgo-peers-0008"
+
 func main() {
+	ProtocolIDPtr := flag.String("proto", version.Version, "Protocol ID for p2p")
+	RendezvousStringPtr := flag.String("rendezvous", defRendezvous, "Rendezvous address")
+
+	flag.Parse()
+
 	opts := opts.DefOptions()
 	buf, err := os.ReadFile("tuns.conf")
 	if err != nil {
@@ -29,8 +37,8 @@ func main() {
 		}
 	}
 
-	ProtocolID := "/tunsgo/" + version.Version
-	RendezvousString := "tunsgo-peers-0008"
+	ProtocolID := "/tunsgo/" + *ProtocolIDPtr
+	RendezvousString := *RendezvousStringPtr
 
 	server, err := p2p.NewP2PServer(ProtocolID, RendezvousString, opts)
 	if err != nil {
@@ -42,8 +50,7 @@ func main() {
 
 	route.Use(gin.Logger(), gin.Recovery())
 
-	// Маршруты прокси
-	route.Any("/proxy", server.GinHandler)
+	route.Any("/proxy/*proxyPath", server.GinHandler)
 	route.GET("/status", func(c *gin.Context) {
 		st := server.Status()
 		c.JSON(http.StatusOK, st)
