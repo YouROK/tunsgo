@@ -39,7 +39,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	route := gin.New()
 
-	route.Use(gin.Logger(), gin.Recovery())
+	route.Use(gin.Recovery())
 
 	route.Any("/proxy/*url", server.GinHandler)
 	route.GET("/status", func(c *gin.Context) {
