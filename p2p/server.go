@@ -48,6 +48,8 @@ func NewP2PServer(protocolID, rendezvous string, opts *opts.Options) (*P2PServer
 	log.Println("[P2P Server] Starting...")
 	log.Println("[P2P Server] Version:", version.Version)
 	log.Println("[P2P Server] Provide hosts:", opts.Hosts)
+	log.Println("[P2P Server] ProtocolID:", protocolID)
+	log.Println("[P2P Server] Rendezvous:", rendezvous)
 
 	key, err := LoadOrCreateIdentity()
 	if err != nil {
