@@ -93,6 +93,7 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 		cm.Close()
 		return nil, err
 	}
+	log.Println("[P2P] ID", h.ID().String())
 
 	idht, err := dht.New(ctx, h, dht.Mode(dht.ModeAutoServer))
 	if err != nil {
@@ -136,8 +137,6 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 		cm.Close()
 		return nil, err
 	}
-
-	log.Println("[P2P] ID", h.ID().String())
 
 	go srv.watchNetworkStatus()
 
