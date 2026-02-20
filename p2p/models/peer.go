@@ -1,8 +1,8 @@
-package p2p
+package models
 
 import "time"
 
-type peerInfo struct {
+type PeerInfo struct {
 	PeerID    string    `json:"peer_id"`
 	Hosts     []string  `json:"hosts,omitempty"`
 	Timestamp int64     `json:"timestamp"`
