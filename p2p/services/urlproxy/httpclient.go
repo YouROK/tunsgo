@@ -51,7 +51,7 @@ func NewP2PClient(h host.Host, protoID protocol.ID) *http.Client {
 					return nil, err
 				}
 
-				log.Println("[HTTP] Connecting to", addr)
+				log.Println("[HTTP] Connecting to p2p:", addr)
 				_, err = fmt.Fprintf(stream, "CONNECT %s\n", addr)
 				if err != nil {
 					stream.Reset()
