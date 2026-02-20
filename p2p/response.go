@@ -15,18 +15,18 @@ import (
 func (s *P2PServer) handleInboundStream(stream network.Stream) {
 	defer stream.Close()
 
-	slot := s.findFreeSlots()
-	if slot < 0 {
+	select {
+	case s.slots <- struct{}{}:
+		defer func() {
+			go func() {
+				time.Sleep(time.Duration(s.opts.Server.SlotSleep) * time.Second)
+				<-s.slots
+			}()
+		}()
+	default:
 		json.NewEncoder(stream).Encode(P2PProxyResponse{StatusCode: 600, Body: []byte("no slots")})
+		return
 	}
-	s.muSlots.Lock()
-	s.slots[slot] = time.Now().Add(time.Minute)
-	s.muSlots.Unlock()
-	defer func() {
-		s.muSlots.Lock()
-		s.slots[slot] = time.Now().Add(time.Second * time.Duration(s.opts.Server.SlotSleep))
-		s.muSlots.Unlock()
-	}()
 
 	pid := stream.Conn().RemotePeer().String()
 
@@ -61,17 +61,6 @@ func (s *P2PServer) handleInboundStream(stream network.Stream) {
 	if err := encoder.Encode(p2pResp); err != nil {
 		log.Printf("[P2P-Proxy] Error sending response to node %s: %v", pid, err)
 	}
-}
-
-func (s *P2PServer) findFreeSlots() int {
-	s.muSlots.Lock()
-	defer s.muSlots.Unlock()
-	for i, slot := range s.slots {
-		if slot.Before(time.Now()) {
-			return i
-		}
-	}
-	return -1
 }
 
 func sendLocalRequest(cli *http.Client, req *P2PProxyRequest, hosts []string) (*P2PProxyResponse, error, int) {

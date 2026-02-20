@@ -31,8 +31,7 @@ type P2PServer struct {
 	cId        cid.Cid
 	protocolID protocol.ID
 
-	slots   []time.Time
-	muSlots sync.RWMutex
+	slots chan struct{}
 
 	ps    *pubsub.PubSub
 	topic *pubsub.Topic
@@ -137,7 +136,7 @@ func NewP2PServer(protocolID, rendezvous string, opts *opts.Options) (*P2PServer
 		topic:      topic,
 		peers:      make(map[peer.ID]*peerInfo),
 		httpClient: &http.Client{Timeout: 20 * time.Second},
-		slots:      make([]time.Time, opts.Server.Slots),
+		slots:      make(chan struct{}, opts.Server.Slots),
 	}
 
 	h.SetStreamHandler(srv.protocolID, srv.handleInboundStream)
