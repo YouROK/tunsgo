@@ -2,8 +2,9 @@ package opts
 
 type Options struct {
 	Server struct {
-		Slots     int `yaml:"slots"`
-		SlotSleep int `yaml:"slot_sleep"`
+		Port      string `yaml:"port"`
+		Slots     int    `yaml:"slots"`
+		SlotSleep int    `yaml:"slot_sleep"`
 	} `yaml:"server"`
 
 	P2P struct {
@@ -17,6 +18,7 @@ type Options struct {
 func DefOptions() *Options {
 	cfg := &Options{}
 
+	cfg.Server.Port = "8080"
 	cfg.Server.Slots = 5
 	cfg.Server.SlotSleep = 1
 

@@ -17,7 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defRendezvous = "tunsgo-peers-0008"
+const defRendezvous = "tunsgo-peers-0009"
 
 func main() {
 	ProtocolIDPtr := flag.String("proto", version.Version, "Protocol ID for p2p")
@@ -50,14 +50,14 @@ func main() {
 
 	route.Use(gin.Logger(), gin.Recovery())
 
-	route.Any("/proxy/*proxyPath", server.GinHandler)
+	route.Any("/proxy/*url", server.GinHandler)
 	route.GET("/status", func(c *gin.Context) {
 		st := server.Status()
 		c.JSON(http.StatusOK, st)
 	})
 
 	httpSrv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + opts.Server.Port,
 		Handler: route,
 	}
 
