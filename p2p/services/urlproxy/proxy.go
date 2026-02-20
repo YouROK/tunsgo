@@ -1,4 +1,4 @@
-package p2p
+package urlproxy
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	"github.com/yourok/tunsgo/p2p/utils"
 )
 
-func (s *P2PServer) GinHandler(c *gin.Context) {
-	selfID := s.host.ID().String()
+func (p *UrlProxy) GinHandler(c *gin.Context) {
+	selfID := p.host.ID().String()
 	if c.GetHeader("X-P2P-Server-ID") == selfID {
 		c.JSON(http.StatusLoopDetected, gin.H{"error": "Infinite loop detected"})
 		return
@@ -29,7 +29,7 @@ func (s *P2PServer) GinHandler(c *gin.Context) {
 		return
 	}
 
-	if utils.MatchHost(s.opts.Hosts, u.Hostname()) == true {
+	if utils.MatchHost(p.opts.Hosts, u.Hostname()) == true {
 		//Local request
 		req, err := http.NewRequest(c.Request.Method, link, c.Request.Body)
 		if err == nil {
@@ -54,7 +54,7 @@ func (s *P2PServer) GinHandler(c *gin.Context) {
 		}
 	}
 
-	candidates := s.getCandidateProxies(u.Host)
+	candidates := p.getCandidateProxies(u.Host)
 	if len(candidates) == 0 {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "no proxy nodes available"})
 		return
@@ -76,9 +76,9 @@ func (s *P2PServer) GinHandler(c *gin.Context) {
 		}
 
 		req.Header.Set("X-P2P-Server-ID", selfID)
-		resp, err := s.httpClient.Do(req)
+		resp, err := p.httpClient.Do(req)
 		if err != nil {
-			s.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
+			p.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
 				if current > 10 {
 					return current - 10
 				}
@@ -104,14 +104,14 @@ func (s *P2PServer) GinHandler(c *gin.Context) {
 	return
 }
 
-func (s *P2PServer) getCandidateProxies(targetHost string) []peer.ID {
+func (p *UrlProxy) getCandidateProxies(targetHost string) []peer.ID {
 	type candidate struct {
 		id   peer.ID
 		last time.Time
 	}
 	var list []candidate
 
-	for pID, info := range s.peers {
+	for pID, info := range p.peers {
 		if utils.MatchHost(info.Hosts, targetHost) {
 			list = append(list, candidate{pID, info.LastResp})
 		}

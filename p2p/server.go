@@ -3,54 +3,45 @@ package p2p
 import (
 	"context"
 	"log"
-	"net/http"
-	"sync"
 	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multihash"
 	"github.com/yourok/tunsgo/opts"
 	"github.com/yourok/tunsgo/p2p/models"
+	"github.com/yourok/tunsgo/p2p/services"
+	"github.com/yourok/tunsgo/p2p/services/urlproxy"
 	"github.com/yourok/tunsgo/version"
 )
 
+const Rendezvous = "tunsgo-peers-0009"
+
 type P2PServer struct {
-	host       host.Host
-	dht        *dht.IpfsDHT
-	ctx        context.Context
-	cm         *connmgr.BasicConnMgr
-	cId        cid.Cid
-	protocolID protocol.ID
+	host host.Host
+	dht  *dht.IpfsDHT
+	ctx  context.Context
+	cm   *connmgr.BasicConnMgr
+	cId  cid.Cid
 
 	slots chan struct{}
 
-	ps    *pubsub.PubSub
-	topic *pubsub.Topic
-
 	opts *opts.Options
 
-	peers   map[peer.ID]*models.PeerInfo
-	muPeers sync.RWMutex
-
-	httpClient *http.Client
+	srvc   *services.Manager
+	urlprx *urlproxy.UrlProxy
 }
 
-func NewP2PServer(protocolID, rendezvous string, opts *opts.Options) (*P2PServer, error) {
+func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 	log.Println("[P2P Server] Starting...")
 	log.Println("[P2P Server] Version:", version.Version)
 	log.Println("[P2P Server] Provide hosts:", opts.Hosts)
-	log.Println("[P2P Server] ProtocolID:", protocolID)
-	log.Println("[P2P Server] Rendezvous:", rendezvous)
 
 	key, err := LoadOrCreateIdentity()
 	if err != nil {
@@ -115,37 +106,36 @@ func NewP2PServer(protocolID, rendezvous string, opts *opts.Options) (*P2PServer
 		MhType:   multihash.SHA2_256,
 		MhLength: -1,
 	}
-	c, _ := pref.Sum([]byte(rendezvous))
-
-	ps, err := pubsub.NewGossipSub(ctx, h)
-	if err != nil {
-		return nil, err
-	}
-
-	topic, err := ps.Join("pubsub-" + rendezvous)
-	if err != nil {
-		return nil, err
-	}
+	c, _ := pref.Sum([]byte(Rendezvous))
 
 	srv := &P2PServer{
-		host:       h,
-		dht:        idht,
-		ctx:        ctx,
-		cm:         cm,
-		protocolID: protocol.ID(protocolID),
-		opts:       opts,
-		cId:        c,
-		ps:         ps,
-		topic:      topic,
-		peers:      make(map[peer.ID]*models.PeerInfo),
-		slots:      make(chan struct{}, opts.Server.Slots),
+		host:  h,
+		dht:   idht,
+		ctx:   ctx,
+		cm:    cm,
+		opts:  opts,
+		cId:   c,
+		slots: make(chan struct{}, opts.Server.Slots),
+		srvc:  services.NewManager(h),
 	}
 
-	srv.httpClient = NewP2PClient(srv.host, srv.protocolID)
-
-	h.SetStreamHandler(srv.protocolID, srv.handleInboundStream)
-
 	go srv.startDiscovery()
+
+	srvctx := &models.SrvCtx{
+		Host:  srv.host,
+		Opts:  srv.opts,
+		Ctx:   srv.ctx,
+		Slots: srv.slots,
+	}
+
+	srv.urlprx = urlproxy.NewUrlProxy(srvctx)
+	srv.srvc.AddService(srv.urlprx)
+
+	err = srv.srvc.Start()
+	if err != nil {
+		cm.Close()
+		return nil, err
+	}
 
 	log.Println("[P2P] ID", h.ID().String())
 
@@ -156,7 +146,8 @@ func NewP2PServer(protocolID, rendezvous string, opts *opts.Options) (*P2PServer
 
 func (s *P2PServer) Stop() {
 	log.Println("[P2P Server] Stoping...")
-	s.topic.Close()
+	s.srvc.Stop()
+
 	s.dht.Close()
 	s.host.Close()
 	s.cm.Close()

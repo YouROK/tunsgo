@@ -1,4 +1,4 @@
-package p2p
+package urlproxy
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 
 type contextKey string
 
-const TargetPeerKey contextKey = "p2p-target-peer"
+const TargetPeerKey contextKey = "p2p-tunsgo-urlproxy"
 
 type streamConn struct {
 	network.Stream

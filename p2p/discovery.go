@@ -17,10 +17,6 @@ func (s *P2PServer) startDiscovery() {
 	s.bootstrap()
 	go s.announceDht()
 	go s.discoveryPeers()
-	if len(s.opts.Hosts) > 0 {
-		go s.announceHosts()
-	}
-	go s.listenForAnnouncements()
 }
 
 func (s *P2PServer) bootstrap() {

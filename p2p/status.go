@@ -25,9 +25,6 @@ type P2PStatus struct {
 }
 
 func (s *P2PServer) Status() *P2PStatus {
-	s.muPeers.RLock()
-	defer s.muPeers.RUnlock()
-
 	status := &P2PStatus{
 		PeerID:       s.host.ID().String(),
 		TotalConns:   len(s.host.Network().Peers()),
@@ -66,7 +63,9 @@ func (s *P2PServer) Status() *P2PStatus {
 			detail.Addrs = append(detail.Addrs, a.String())
 		}
 
-		if info, ok := s.peers[pID]; ok {
+		peers := s.urlprx.GetPeers()
+
+		if info, ok := peers[pID]; ok {
 			detail.LastSeen = info.LastSeen
 			for _, domain := range info.Hosts {
 				status.KnownDomains[domain] = append(status.KnownDomains[domain], pID.ShortString())

@@ -13,16 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yourok/tunsgo/opts"
 	"github.com/yourok/tunsgo/p2p"
-	"github.com/yourok/tunsgo/version"
 	"gopkg.in/yaml.v3"
 )
 
-const defRendezvous = "tunsgo-peers-0009"
-
 func main() {
-	ProtocolIDPtr := flag.String("proto", version.Version, "Protocol ID for p2p")
-	RendezvousStringPtr := flag.String("rendezvous", defRendezvous, "Rendezvous address")
-
 	flag.Parse()
 
 	opts := opts.DefOptions()
@@ -37,10 +31,7 @@ func main() {
 		}
 	}
 
-	ProtocolID := "/tunsgo/" + *ProtocolIDPtr
-	RendezvousString := *RendezvousStringPtr
-
-	server, err := p2p.NewP2PServer(ProtocolID, RendezvousString, opts)
+	server, err := p2p.NewP2PServer(opts)
 	if err != nil {
 		log.Fatal(err)
 	}
