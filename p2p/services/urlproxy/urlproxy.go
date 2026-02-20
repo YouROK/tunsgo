@@ -78,7 +78,7 @@ func (p *UrlProxy) Name() string {
 }
 
 func (p *UrlProxy) ProtocolID() protocol.ID {
-	return "/tunsgo/urlproxy/" + version.Version
+	return "/tunsgo/urlproxy/1.0.0"
 }
 
 func (p *UrlProxy) GetPeers() map[peer.ID]*models.PeerInfo {
