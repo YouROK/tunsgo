@@ -32,6 +32,9 @@ type P2PProxyResponse struct {
 func (s *P2PServer) GinHandler(c *gin.Context) {
 	body, _ := io.ReadAll(c.Request.Body)
 
+	proxyPath := c.Param("proxyPath")
+	proxyPath = strings.TrimPrefix(proxyPath, "/")
+
 	headers := make(map[string]string)
 	for k, v := range c.Request.Header {
 		headers[k] = v[0]
@@ -39,7 +42,7 @@ func (s *P2PServer) GinHandler(c *gin.Context) {
 
 	p2pReq := &P2PProxyRequest{
 		Method:  c.Request.Method,
-		URL:     c.Query("url"),
+		URL:     proxyPath, //c.Query("url"),
 		Headers: headers,
 		Body:    body,
 	}
