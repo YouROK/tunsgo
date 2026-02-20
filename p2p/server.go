@@ -20,6 +20,7 @@ import (
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multihash"
 	"github.com/yourok/tunsgo/opts"
+	"github.com/yourok/tunsgo/p2p/models"
 	"github.com/yourok/tunsgo/version"
 )
 
@@ -38,7 +39,7 @@ type P2PServer struct {
 
 	opts *opts.Options
 
-	peers   map[peer.ID]*peerInfo
+	peers   map[peer.ID]*models.PeerInfo
 	muPeers sync.RWMutex
 
 	httpClient *http.Client
@@ -84,7 +85,7 @@ func NewP2PServer(protocolID, rendezvous string, opts *opts.Options) (*P2PServer
 		libp2p.ListenAddrStrings(
 			"/ip4/0.0.0.0/tcp/0",
 			//"/ip4/0.0.0.0/udp/0/quic-v1",
-			"/ip4/0.0.0.0/udp/0/webrtc-direct",
+			//"/ip4/0.0.0.0/udp/0/webrtc-direct",
 			//"/ip4/0.0.0.0/tcp/443/wss",
 		),
 		libp2p.ConnectionManager(cm),
@@ -136,10 +137,11 @@ func NewP2PServer(protocolID, rendezvous string, opts *opts.Options) (*P2PServer
 		cId:        c,
 		ps:         ps,
 		topic:      topic,
-		peers:      make(map[peer.ID]*peerInfo),
-		httpClient: &http.Client{Timeout: 20 * time.Second},
+		peers:      make(map[peer.ID]*models.PeerInfo),
 		slots:      make(chan struct{}, opts.Server.Slots),
 	}
+
+	srv.httpClient = NewP2PClient(srv.host, srv.protocolID)
 
 	h.SetStreamHandler(srv.protocolID, srv.handleInboundStream)
 
