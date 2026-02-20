@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -61,6 +62,8 @@ func (p *UrlProxy) GinHandler(c *gin.Context) {
 	}
 
 	for _, pID := range candidates {
+		p.peers[pID].LastResp = time.Now()
+
 		ctx := context.WithValue(c.Request.Context(), TargetPeerKey, pID)
 
 		req, err := http.NewRequestWithContext(ctx, c.Request.Method, link, c.Request.Body)
@@ -89,6 +92,7 @@ func (p *UrlProxy) GinHandler(c *gin.Context) {
 			}
 			continue
 		}
+		log.Printf("[REQ] Request to %s link: %s", pID.String(), link)
 
 		for k, vv := range resp.Header {
 			for _, v := range vv {
