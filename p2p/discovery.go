@@ -57,7 +57,7 @@ func (s *P2PServer) announceDht() {
 		log.Printf("[DHT] Error bootstrap DHT: %v", err)
 	}
 
-	ticker := time.NewTicker(20 * time.Minute)
+	ticker := time.NewTicker(3 * time.Hour)
 	defer ticker.Stop()
 	for {
 		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Minute)
