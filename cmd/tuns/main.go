@@ -10,9 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/YouROK/tunsgo/opts"
+	"github.com/YouROK/tunsgo/p2p"
 	"github.com/gin-gonic/gin"
-	"github.com/yourok/tunsgo/opts"
-	"github.com/yourok/tunsgo/p2p"
 	"gopkg.in/yaml.v3"
 )
 

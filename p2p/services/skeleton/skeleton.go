@@ -4,11 +4,11 @@ import (
 	"context"
 	"log"
 
+	"github.com/YouROK/tunsgo/opts"
+	"github.com/YouROK/tunsgo/p2p/models"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/yourok/tunsgo/opts"
-	"github.com/yourok/tunsgo/p2p/models"
 )
 
 type Skeleton struct {

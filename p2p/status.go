@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YouROK/tunsgo/p2p/models"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/yourok/tunsgo/p2p/models"
 )
 
 type PeerDetail struct {

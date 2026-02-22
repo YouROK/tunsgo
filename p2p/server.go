@@ -6,6 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/YouROK/tunsgo/opts"
+	"github.com/YouROK/tunsgo/p2p/models"
+	"github.com/YouROK/tunsgo/p2p/services"
+	"github.com/YouROK/tunsgo/p2p/services/hostpex"
+	"github.com/YouROK/tunsgo/p2p/services/pex"
+	"github.com/YouROK/tunsgo/p2p/services/urlproxy"
+	"github.com/YouROK/tunsgo/version"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
@@ -16,13 +23,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multihash"
-	"github.com/yourok/tunsgo/opts"
-	"github.com/yourok/tunsgo/p2p/models"
-	"github.com/yourok/tunsgo/p2p/services"
-	"github.com/yourok/tunsgo/p2p/services/hostpex"
-	"github.com/yourok/tunsgo/p2p/services/pex"
-	"github.com/yourok/tunsgo/p2p/services/urlproxy"
-	"github.com/yourok/tunsgo/version"
 )
 
 const Rendezvous = "tunsgo-peers-0009"

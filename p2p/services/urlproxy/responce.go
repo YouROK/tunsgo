@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YouROK/tunsgo/p2p/utils"
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/yourok/tunsgo/p2p/utils"
 )
 
 func (p *UrlProxy) HandleStream(stream network.Stream) {
