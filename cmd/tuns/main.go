@@ -57,7 +57,7 @@ func main() {
 			log.Printf("HTTP server error: %s\n", err)
 		}
 	}()
-	fmt.Println("HTTP сервер запущен на :8080")
+	fmt.Println("HTTP сервер запущен на :" + opts.Server.Port)
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
