@@ -1,4 +1,4 @@
-module github.com/yourok/tunsgo
+module github.com/YouROK/tunsgo
 
 go 1.26
 
