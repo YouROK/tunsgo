@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -11,12 +12,14 @@ import (
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multihash"
 	"github.com/yourok/tunsgo/opts"
 	"github.com/yourok/tunsgo/p2p/models"
 	"github.com/yourok/tunsgo/p2p/services"
+	"github.com/yourok/tunsgo/p2p/services/hostpex"
 	"github.com/yourok/tunsgo/p2p/services/pex"
 	"github.com/yourok/tunsgo/p2p/services/urlproxy"
 	"github.com/yourok/tunsgo/version"
@@ -36,6 +39,8 @@ type P2PServer struct {
 	opts *opts.Options
 
 	srvc   *services.Manager
+	srvctx *models.SrvCtx
+
 	urlprx *urlproxy.UrlProxy
 }
 
@@ -124,15 +129,19 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 	go srv.startDiscovery()
 
 	srvctx := &models.SrvCtx{
-		Host:  srv.host,
-		Opts:  srv.opts,
-		Ctx:   srv.ctx,
-		Slots: srv.slots,
+		Host:    srv.host,
+		Opts:    srv.opts,
+		Ctx:     srv.ctx,
+		Slots:   srv.slots,
+		Peers:   make(map[peer.ID]*models.PeerInfo),
+		MuPeers: sync.RWMutex{},
 	}
+
+	srv.srvctx = srvctx
 
 	srv.urlprx = urlproxy.NewUrlProxy(srvctx)
 	srv.srvc.AddService(srv.urlprx)
-
+	srv.srvc.AddService(hostpex.NewHostPex(srvctx))
 	srv.srvc.AddService(pex.NewPex(srvctx))
 
 	err = srv.srvc.Start()

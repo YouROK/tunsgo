@@ -1,8 +1,12 @@
 package p2p
 
 import (
+	"maps"
 	"strings"
 	"time"
+
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/yourok/tunsgo/p2p/models"
 )
 
 type PeerDetail struct {
@@ -63,7 +67,10 @@ func (s *P2PServer) Status() *P2PStatus {
 			detail.Addrs = append(detail.Addrs, a.String())
 		}
 
-		peers := s.urlprx.GetPeers()
+		peers := map[peer.ID]*models.PeerInfo{}
+		s.srvctx.MuPeers.RLock()
+		maps.Copy(peers, s.srvctx.Peers)
+		s.srvctx.MuPeers.RUnlock()
 
 		if info, ok := peers[pID]; ok {
 			detail.LastSeen = info.LastSeen

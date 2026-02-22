@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"strings"
+	"math/rand"
+	"sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -16,10 +18,13 @@ import (
 )
 
 type Pex struct {
-	host       host.Host
-	opts       *opts.Options
-	ctx        context.Context
-	lastSeeded map[peer.ID]time.Time
+	host host.Host
+	opts *opts.Options
+	ctx  context.Context
+
+	lastSeeded   map[peer.ID]time.Time
+	muLastSeeded sync.RWMutex
+	sem          chan struct{}
 }
 
 func NewPex(c *models.SrvCtx) *Pex {
@@ -28,21 +33,25 @@ func NewPex(c *models.SrvCtx) *Pex {
 		opts:       c.Opts,
 		ctx:        c.Ctx,
 		lastSeeded: make(map[peer.ID]time.Time),
+		sem:        make(chan struct{}, 5),
 	}
 }
 
 func (p *Pex) Start() error {
 	log.Println("[PEX] Service started")
-	go p.discoveryLoop()
+
+	go p.subscribeToEvents()
+	go p.gcLoop()
+
 	return nil
 }
 
 func (p *Pex) Stop() {
-	log.Println("[PEX] Service stopped")
+	log.Println("[PEX] Service stoping...")
 }
 
 func (p *Pex) Name() string {
-	return "PEX"
+	return "Pex"
 }
 
 func (p *Pex) ProtocolID() protocol.ID {
@@ -53,85 +62,96 @@ func (p *Pex) HandleStream(stream network.Stream) {
 	defer stream.Close()
 
 	remotePeer := stream.Conn().RemotePeer()
-	tunsGoPeers := make([]peer.AddrInfo, 0, 30)
 
+	candidates := p.collectAddrInfos(remotePeer)
+
+	rand.Shuffle(len(candidates), func(i, j int) {
+		candidates[i], candidates[j] = candidates[j], candidates[i]
+	})
+
+	if len(candidates) > 30 {
+		candidates = candidates[:30]
+	}
+
+	json.NewEncoder(stream).Encode(candidates)
+}
+
+func (p *Pex) collectAddrInfos(exclude peer.ID) []peer.AddrInfo {
 	added := make(map[peer.ID]bool)
 	added[p.host.ID()] = true
-	added[remotePeer] = true
+	added[exclude] = true
 
-	for _, conn := range p.host.Network().Conns() {
-		pid := conn.RemotePeer()
+	res := make([]peer.AddrInfo, 0, 30)
 
+	for _, pid := range p.host.Network().Peers() {
 		if !added[pid] && p.isTunsGoPeer(pid) {
 			info := p.host.Peerstore().PeerInfo(pid)
 			if len(info.Addrs) > 0 {
-				tunsGoPeers = append(tunsGoPeers, info)
+				res = append(res, info)
 				added[pid] = true
 			}
 		}
-
-		if len(tunsGoPeers) >= 30 {
+		if len(res) >= 60 {
 			break
 		}
 	}
 
-	if len(tunsGoPeers) < 30 {
-		allKnown := p.host.Peerstore().Peers()
-		for _, pid := range allKnown {
+	if len(res) < 30 {
+		for _, pid := range p.host.Peerstore().Peers() {
 			if !added[pid] && p.isTunsGoPeer(pid) {
 				info := p.host.Peerstore().PeerInfo(pid)
 				if len(info.Addrs) > 0 {
-					tunsGoPeers = append(tunsGoPeers, info)
+					res = append(res, info)
 					added[pid] = true
 				}
 			}
-
-			if len(tunsGoPeers) >= 30 {
+			if len(res) >= 60 {
 				break
 			}
 		}
 	}
-
-	json.NewEncoder(stream).Encode(tunsGoPeers)
+	return res
 }
 
-func (p *Pex) discoveryLoop() {
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
+func (p *Pex) subscribeToEvents() {
+	sub, _ := p.host.EventBus().Subscribe(new(event.EvtPeerIdentificationCompleted))
+	defer sub.Close()
 
 	for {
 		select {
 		case <-p.ctx.Done():
 			return
-		case <-ticker.C:
-			currentConns := p.host.Network().Peers()
-			tunsCount := 0
-			for _, pid := range currentConns {
-				if p.isTunsGoPeer(pid) {
-					tunsCount++
-				}
-			}
+		case e := <-sub.Out():
+			evt := e.(event.EvtPeerIdentificationCompleted)
 
-			if tunsCount < p.opts.P2P.LowConns {
-				p.askNeighbors()
+			if len(p.host.Network().Peers()) < p.opts.P2P.LowConns {
+				p.checkAndRequest(evt.Peer)
 			}
 		}
 	}
 }
 
-func (p *Pex) askNeighbors() {
-	conns := p.host.Network().Conns()
-	for _, conn := range conns {
-		remoteID := conn.RemotePeer()
+func (p *Pex) checkAndRequest(id peer.ID) {
+	protocols, _ := p.host.Peerstore().SupportsProtocols(id, p.ProtocolID())
+	if len(protocols) == 0 {
+		return
+	}
 
-		if last, ok := p.lastSeeded[remoteID]; ok && time.Since(last) < 5*time.Minute {
-			continue
-		}
+	p.muLastSeeded.RLock()
+	last, ok := p.lastSeeded[id]
+	p.muLastSeeded.RUnlock()
 
-		protocols, err := p.host.Peerstore().SupportsProtocols(remoteID, p.ProtocolID())
-		if err == nil && len(protocols) > 0 {
-			go p.requestPeersFrom(remoteID)
-		}
+	if ok && time.Since(last) < 5*time.Minute {
+		return
+	}
+
+	select {
+	case p.sem <- struct{}{}:
+		go func() {
+			defer func() { <-p.sem }()
+			p.requestPeersFrom(id)
+		}()
+	default:
 	}
 }
 
@@ -150,27 +170,39 @@ func (p *Pex) requestPeersFrom(id peer.ID) {
 		return
 	}
 
+	p.muLastSeeded.Lock()
 	p.lastSeeded[id] = time.Now()
+	p.muLastSeeded.Unlock()
 
 	for _, info := range discovered {
 		if info.ID == p.host.ID() {
 			continue
 		}
-
 		p.host.Peerstore().AddAddrs(info.ID, info.Addrs, time.Hour)
-		log.Printf("[PEX] Found tunsgo node: %s from %s", info.ID, id.ShortString())
 	}
 }
 
 func (p *Pex) isTunsGoPeer(id peer.ID) bool {
-	protocols, err := p.host.Peerstore().GetProtocols(id)
-	if err != nil {
-		return false
-	}
-	for _, proto := range protocols {
-		if strings.HasPrefix(string(proto), "/tunsgo") {
-			return true
+	protocols, err := p.host.Peerstore().SupportsProtocols(id, "/tunsgo")
+	return err == nil && len(protocols) > 0
+}
+
+func (p *Pex) gcLoop() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-ticker.C:
+			p.muLastSeeded.Lock()
+			now := time.Now()
+			for id, t := range p.lastSeeded {
+				if now.Sub(t) > 1*time.Hour {
+					delete(p.lastSeeded, id)
+				}
+			}
+			p.muLastSeeded.Unlock()
 		}
 	}
-	return false
 }

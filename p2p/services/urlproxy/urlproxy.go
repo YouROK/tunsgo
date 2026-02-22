@@ -3,7 +3,6 @@ package urlproxy
 import (
 	"context"
 	"log"
-	"maps"
 	"net/http"
 	"sync"
 
@@ -29,21 +28,22 @@ type UrlProxy struct {
 	topic *pubsub.Topic
 
 	peers   map[peer.ID]*models.PeerInfo
-	muPeers sync.RWMutex
+	muPeers *sync.RWMutex
 }
 
 func NewUrlProxy(c *models.SrvCtx) *UrlProxy {
 	return &UrlProxy{
-		host:  c.Host,
-		opts:  c.Opts,
-		ctx:   c.Ctx,
-		slots: c.Slots,
-		peers: make(map[peer.ID]*models.PeerInfo),
+		host:    c.Host,
+		opts:    c.Opts,
+		ctx:     c.Ctx,
+		slots:   c.Slots,
+		peers:   c.Peers,
+		muPeers: &c.MuPeers,
 	}
 }
 
 func (p *UrlProxy) Start() error {
-	log.Println("[P2P] Starting URL Proxy")
+	log.Println("[UrlProxy] Service started")
 
 	ps, err := pubsub.NewGossipSub(p.ctx, p.host)
 	if err != nil {
@@ -59,17 +59,11 @@ func (p *UrlProxy) Start() error {
 
 	p.httpClient = NewP2PClient(p.host, p.ProtocolID())
 
-	if len(p.opts.Hosts) > 0 {
-		go p.announceHosts()
-	}
-	go p.listenForAnnouncements()
-	go p.cleanupPeersGC()
-
 	return nil
 }
 
 func (p *UrlProxy) Stop() {
-	log.Println("[P2P] Stopping URL Proxy")
+	log.Println("[UrlProxy] Service stoping...")
 	p.topic.Close()
 }
 
@@ -79,11 +73,4 @@ func (p *UrlProxy) Name() string {
 
 func (p *UrlProxy) ProtocolID() protocol.ID {
 	return "/tunsgo/urlproxy/1.0.0"
-}
-
-func (p *UrlProxy) GetPeers() map[peer.ID]*models.PeerInfo {
-	p.muPeers.RLock()
-	defer p.muPeers.RUnlock()
-
-	return maps.Clone(p.peers)
 }
