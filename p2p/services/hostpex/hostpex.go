@@ -10,6 +10,7 @@ import (
 
 	"github.com/YouROK/tunsgo/opts"
 	"github.com/YouROK/tunsgo/p2p/models"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -21,6 +22,7 @@ type HostPex struct {
 	host host.Host
 	opts *opts.Options
 	ctx  context.Context
+	dht  *dht.IpfsDHT
 
 	peers   map[peer.ID]*models.PeerInfo
 	muPeers *sync.RWMutex
@@ -38,6 +40,7 @@ func NewHostPex(c *models.SrvCtx) *HostPex {
 		host:        c.Host,
 		opts:        c.Opts,
 		ctx:         c.Ctx,
+		dht:         c.Dht,
 		peers:       c.Peers,
 		muPeers:     &c.MuPeers,
 		lastSeeded:  make(map[peer.ID]time.Time),
@@ -183,7 +186,6 @@ func (p *HostPex) requestHostsFrom(id peer.ID) {
 	p.muLastSeeded.Unlock()
 
 	for _, info := range discovered {
-		log.Printf("[HOSTPEX] Add peer %s with hosts: %v", info.PeerID, info.Hosts)
 		p.addPeer(info)
 	}
 }
@@ -195,14 +197,12 @@ func (p *HostPex) addPeer(info *models.PeerInfo) {
 	}
 
 	p.muPeers.Lock()
-	defer p.muPeers.Unlock()
-
 	if len(p.peers) >= p.maxPeers {
 		p.remOldest(10)
 	}
-
 	info.LastSeen = time.Now()
 	p.peers[pid] = info
+	p.muPeers.Unlock()
 }
 
 func (p *HostPex) remOldest(count int) {
