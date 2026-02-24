@@ -26,12 +26,12 @@ func NewSkeleton(c *models.SrvCtx) *Skeleton {
 }
 
 func (p *Skeleton) Start() error {
-	log.Println("[P2P] Starting skeleton")
+	log.Println("[SKEL] Service started")
 	return nil
 }
 
 func (p *Skeleton) Stop() {
-	log.Println("[P2P] Stopping URL Proxy")
+	log.Println("[SKEL] Service stoping...")
 }
 
 func (p *Skeleton) Name() string {
