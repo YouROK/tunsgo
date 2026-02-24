@@ -22,8 +22,8 @@ func DefOptions() *Options {
 	cfg.Server.Slots = 5
 	cfg.Server.SlotSleep = 1
 
-	cfg.P2P.LowConns = 20
-	cfg.P2P.HiConns = 50
+	cfg.P2P.LowConns = 50
+	cfg.P2P.HiConns = 200
 
 	cfg.Hosts = []string{"*themoviedb.org", "*tmdb.org"}
 
