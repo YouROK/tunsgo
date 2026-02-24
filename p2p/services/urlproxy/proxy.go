@@ -102,6 +102,9 @@ func (p *UrlProxy) GinHandler(c *gin.Context) {
 		c.Status(resp.StatusCode)
 		io.Copy(c.Writer, resp.Body)
 		resp.Body.Close()
+		p.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
+			return 100
+		})
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"error": "No nodes available"})
