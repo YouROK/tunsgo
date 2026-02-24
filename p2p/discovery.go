@@ -91,7 +91,17 @@ func (s *P2PServer) discoveryPeers() {
 			}
 
 			if s.host.Network().Connectedness(p.ID) != network.Connected {
-				s.host.Connect(s.ctx, p)
+				err := s.host.Connect(s.ctx, p)
+				if err == nil {
+					s.host.ConnManager().UpsertTag(p.ID, "tuns-node", func(current int) int {
+						return 100
+					})
+					s.srvctx.MuPeers.Lock()
+					if info, ok := s.srvctx.Peers[p.ID]; ok {
+						info.LastSeen = time.Now()
+					}
+					s.srvctx.MuPeers.Unlock()
+				}
 			}
 		}
 		cancel()
