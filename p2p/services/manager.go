@@ -34,7 +34,9 @@ func (m *Manager) GetServices() []P2PService {
 
 func (m *Manager) AddService(srv P2PService) {
 	m.Services = append(m.Services, srv)
-	m.Host.SetStreamHandler(srv.ProtocolID(), srv.HandleStream)
+	if srv.ProtocolID() != "" {
+		m.Host.SetStreamHandler(srv.ProtocolID(), srv.HandleStream)
+	}
 }
 
 func (m *Manager) Start() error {
