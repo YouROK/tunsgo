@@ -9,6 +9,7 @@ import (
 	"github.com/YouROK/tunsgo/opts"
 	"github.com/YouROK/tunsgo/p2p/models"
 	"github.com/YouROK/tunsgo/p2p/services"
+	"github.com/YouROK/tunsgo/p2p/services/discover"
 	"github.com/YouROK/tunsgo/p2p/services/hostpex"
 	"github.com/YouROK/tunsgo/p2p/services/pex"
 	"github.com/YouROK/tunsgo/p2p/services/urlproxy"
@@ -21,6 +22,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
+	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multihash"
 )
@@ -75,21 +77,25 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 		return nil, err
 	}
 
+	relayResources := relay.DefaultResources()
+	if relayResources.Limit != nil {
+		relayResources.Limit.Duration = 2 * time.Minute
+		relayResources.Limit.Data = 1 << 21 //2 mb
+	}
+
 	optsLp2p := []libp2p.Option{
 		libp2p.Identity(key),
 		libp2p.ChainOptions(libp2p.DefaultPrivateTransports),
 		libp2p.Security(tls.ID, tls.New),
 		libp2p.ListenAddrStrings(
 			"/ip4/0.0.0.0/tcp/0",
-			//"/ip4/0.0.0.0/udp/0/quic-v1",
-			//"/ip4/0.0.0.0/udp/0/webrtc-direct",
-			//"/ip4/0.0.0.0/tcp/443/wss",
 		),
 		libp2p.ConnectionManager(cm),
 		libp2p.NATPortMap(),
 
 		libp2p.EnableRelay(),
-		libp2p.EnableRelayService(),
+		libp2p.EnableRelayService(relay.WithResources(relayResources)),
+		libp2p.EnableAutoRelayWithStaticRelays(nil),
 		libp2p.EnableNATService(),
 		libp2p.EnableHolePunching(),
 	}
@@ -101,7 +107,7 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 	}
 	log.Println("[P2P] ID", h.ID().String())
 
-	idht, err := dht.New(ctx, h, dht.Mode(dht.ModeAutoServer))
+	idht, err := dht.New(ctx, h, dht.Mode(dht.ModeAuto))
 	if err != nil {
 		cm.Close()
 		return nil, err
@@ -132,6 +138,7 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 		Host:    srv.host,
 		Opts:    srv.opts,
 		Ctx:     srv.ctx,
+		Dht:     srv.dht,
 		Slots:   srv.slots,
 		Peers:   make(map[peer.ID]*models.PeerInfo),
 		MuPeers: sync.RWMutex{},
@@ -143,6 +150,7 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 	srv.srvc.AddService(srv.urlprx)
 	srv.srvc.AddService(hostpex.NewHostPex(srvctx))
 	srv.srvc.AddService(pex.NewPex(srvctx))
+	srv.srvc.AddService(discover.NewDiscover(srvctx))
 
 	err = srv.srvc.Start()
 	if err != nil {
@@ -184,16 +192,17 @@ func (s *P2PServer) watchNetworkStatus() {
 					return
 				}
 
-				evt := e.(event.EvtLocalReachabilityChanged)
-				switch evt.Reachability {
-				case network.ReachabilityPublic:
-					log.Println("[NET] Reachability changed: PUBLIC. Node is now operating as a Relay Hop")
-				case network.ReachabilityPrivate:
-					log.Println("[NET] Reachability changed: PRIVATE. Node is operating behind NAT (client mode)")
-				case network.ReachabilityUnknown:
-					log.Println("[NET] Reachability changed: UNKNOWN. Determining network status...")
+				switch evt := e.(type) {
+				case event.EvtLocalReachabilityChanged:
+					switch evt.Reachability {
+					case network.ReachabilityPublic:
+						log.Println("[NET] Reachability changed: PUBLIC. Node is now operating as a Relay Hop")
+					case network.ReachabilityPrivate:
+						log.Println("[NET] Reachability changed: PRIVATE. Node is operating behind NAT (client mode)")
+					case network.ReachabilityUnknown:
+						log.Println("[NET] Reachability changed: UNKNOWN. Determining network status...")
+					}
 				}
-
 			case <-s.ctx.Done():
 				log.Println("[NET] Stopping network reachability")
 				return
